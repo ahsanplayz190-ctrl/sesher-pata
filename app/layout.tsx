@@ -1,0 +1,75 @@
+import type { Metadata } from 'next';
+import { Noto_Sans_Bengali } from 'next/font/google';
+import './globals.css';
+import { AppProviders } from '../src/context/AppProviders';
+
+const notoSansBengali = Noto_Sans_Bengali({
+  subsets: ['bengali'],
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-noto-sans-bengali',
+  display: 'swap',
+});
+
+export const metadata: Metadata = {
+  title: 'শেষের পাতা — অনলাইন বইয়ের দোকান | Shesher Pata Online Bookshop',
+  description: 'শেষের পাতা - বাংলাদেশের সর্বাধিক বিশ্বস্ত অনলাইন বইয়ের দোকান। রবীন্দ্রনাথ, নজরুল, হুমায়ূন আহমেদ, ফেলুদা সহ সকল সেরা লেখকের ক্লাসিক ও নতুন বই কিনুন সেরা অফারে।',
+  keywords: [
+    'শেষের পাতা',
+    'Shesher Pata',
+    'অনলাইন বইয়ের দোকান',
+    'বই কিনুন',
+    'বাংলা বই',
+    'রবীন্দ্রনাথ ঠাকুর',
+    'হুমায়ূন আহমেদ',
+    'ফেলুদা',
+    'বইমেলা অফার',
+    'Bangla Books Online',
+  ],
+  authors: [{ name: 'Shesher Pata' }],
+  creator: 'Shesher Pata Team',
+  openGraph: {
+    title: 'শেষের পাতা — আপনার পছন্দের সেরা বাংলা বইয়ের সংগ্রহ',
+    description: 'দেশি-বিদেশি অমর সাহিত্যকর্ম ও সাম্প্রতিক প্রকাশনা সরাসরি আপনার ঠিকানায়। হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা!',
+    url: 'https://shesherpata.com',
+    siteName: 'Shesher Pata',
+    images: [
+      {
+        url: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
+        width: 1200,
+        height: 630,
+        alt: 'Shesher Pata Book Store',
+      },
+    ],
+    locale: 'bn_BD',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'শেষের পাতা — অনলাইন বইয়ের দোকান',
+    description: 'শতভাগ আসল ও মানসম্মত বাংলা বই কিনুন আকর্ষণীয় ছাড়ে।',
+    images: ['https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
+      <body
+        className="min-h-screen bg-[#FAF8F4] text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950 font-bengali"
+        suppressHydrationWarning
+      >
+        <AppProviders>
+          {children}
+        </AppProviders>
+      </body>
+    </html>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "শেষের পাতা",
+  "description": "বাংলাদেশের প্রিমিয়াম অনলাইন বইয়ের দোকান - বইয়ের পাতায় খুঁজে নিন আপনার গল্প।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
