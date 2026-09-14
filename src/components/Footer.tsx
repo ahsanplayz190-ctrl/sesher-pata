@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Phone, Mail, MapPin, Facebook, Instagram, Youtube, BookOpen, ShieldCheck, Heart } from 'lucide-react';
+import React, { useState } from 'react';
+import { Phone, Mail, MapPin, Facebook, Twitter, Instagram, Youtube, Check, Heart } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 
 interface FooterProps {
@@ -10,246 +10,240 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) => {
+  const [email, setEmail] = useState('');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email.trim()) {
+      setIsSubscribed(true);
+      setEmail('');
+      setTimeout(() => setIsSubscribed(false), 5000);
+    }
+  };
+
   return (
-    <footer className="bg-[#111113] text-zinc-300 border-t border-zinc-800 pt-12 pb-24 lg:pb-12 mt-16 select-none">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Top Feature Highlights */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pb-12 border-b border-zinc-800/80">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#F59E0B] flex items-center justify-center shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white">১০০% আসল বই</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">সব বই সরাসরি নির্ভরযোগ্য প্রকাশনী থেকে সংগৃহীত</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#F59E0B] flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white">নিরাপদ পেমেন্ট</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">ক্যাশ অন ডেলিভারি, বিকাশ ও কার্ড পেমেন্ট</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#F59E0B] flex items-center justify-center shrink-0">
-              <Phone className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white"> সার্বক্ষণিক হেল্পলাইন</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">০১৭০০-০০০০০০ (সকাল ৯টা - রাত ১০টা)</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#F59E0B] flex items-center justify-center shrink-0">
-              <Heart className="w-5 h-5 text-rose-400" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white">সহজ রিটার্ন পলিসি</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">ত্রুটিপূর্ণ বইয়ে ৭ দিনের মধ্যে বিনা খরচে রিটার্ন</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 4 Main Footer Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 py-12 border-b border-zinc-800/80">
-          {/* Brand Info & Mission */}
-          <div className="lg:col-span-4 space-y-4">
-            <BrandLogo variant="dark" size="lg" onClick={() => onNavigate('home')} />
-            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed pr-4">
-              "বইয়ের পাতায় খুঁজে নিন আপনার গল্প।" — শেষের পাতা বাংলাদেশের পাঠকদের জন্য একটি নান্দনিক ও বিশ্বস্ত অনলাইন বইয়ের বিপণি। ক্লাসিক থেকে সমকালীন, আপনার প্রিয় বই পৌঁছে যাবে আপনার দরজায়।
+    <footer className="w-full mt-12 select-none font-['Noto_Sans_Bengali']">
+      {/* Newsletter / Subscription Bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8">
+        <div className="bg-[#FAF8F4] border border-[#E8E3D5] rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xs">
+          <div className="text-center md:text-left space-y-1">
+            <h3 className="text-lg sm:text-xl font-black text-[#1E1B13]">
+              নতুন বই ও অফারের আপডেট পেতে যুক্ত থাকুন
+            </h3>
+            <p className="text-xs sm:text-sm text-zinc-600">
+              আমাদের নিউজলেটারে সাবস্ক্রাইব করুন এবং বিশেষ ডিসকাউন্ট কুপন পান সরাসরি আপনার ইমেইলে।
             </p>
-
-            {/* Social Icons */}
-            <div className="flex items-center gap-3 pt-2">
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 rounded-xl bg-zinc-800/80 hover:bg-[#1877F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                aria-label="ফেসবুক"
-              >
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 rounded-xl bg-zinc-800/80 hover:bg-[#E4405F] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                aria-label="ইনস্টাগ্রাম"
-              >
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a
-                href="https://youtube.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 rounded-xl bg-zinc-800/80 hover:bg-[#FF0000] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                aria-label="ইউটিউব"
-              >
-                <Youtube className="w-4 h-4" />
-              </a>
-            </div>
           </div>
 
-          {/* Column 1: শেষের পাতা */}
-          <div className="lg:col-span-2 space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider font-['Noto_Sans_Bengali']">
-              শেষের পাতা
-            </h4>
-            <ul className="space-y-2 text-xs sm:text-sm text-zinc-400">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('about')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  আমাদের সম্পর্কে
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('contact')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  যোগাযোগ
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('about')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  ক্যারিয়ার
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('authors')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  লেখক তালিকা
-                </button>
-              </li>
-            </ul>
-          </div>
+          <form onSubmit={handleSubscribe} className="w-full md:w-auto flex-1 max-w-md flex items-center shadow-xs rounded-xl overflow-hidden border border-zinc-300 focus-within:border-[#E5A913] bg-white transition-all">
+            <input
+              type="text"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="আপনার মোবাইল নম্বর বা ইমেইল লিখুন..."
+              className="w-full bg-white text-zinc-900 placeholder:text-zinc-400 px-4 py-3 text-xs sm:text-sm outline-none font-medium"
+            />
+            <button
+              type="submit"
+              className="bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-bold text-xs sm:text-sm px-6 py-3 transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
+            >
+              {isSubscribed ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>ধন্যবাদ!</span>
+                </>
+              ) : (
+                <span>সাবস্ক্রাইব</span>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
 
-          {/* Column 2: গ্রাহক সেবা */}
-          <div className="lg:col-span-3 space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider font-['Noto_Sans_Bengali']">
-              গ্রাহক সেবা
-            </h4>
-            <ul className="space-y-2 text-xs sm:text-sm text-zinc-400">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('contact')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  সাহায্য কেন্দ্র
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={onOpenTrackOrder}
-                  className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
-                >
-                  <span>অর্ডার ট্র্যাক করুন</span>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">লাইভ</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('about')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  রিটার্ন ও রিফান্ড পলিসি
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('about')}
-                  className="hover:text-amber-400 transition-colors"
-                >
-                  ডেলিভারি তথ্য ও চার্জ
-                </button>
-              </li>
-            </ul>
-          </div>
+      {/* Dark Main Footer Body */}
+      <div className="bg-[#18150C] text-zinc-300 border-t border-[#2A2417] pt-12 pb-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
+            {/* Column 1: Brand Logo & Social */}
+            <div className="space-y-4">
+              <BrandLogo variant="dark" size="md" onClick={() => onNavigate('home')} />
+              <p className="text-xs text-zinc-400 leading-relaxed font-normal">
+                "শেষের পাতা" — বাংলাদেশের সর্বাধিক নির্ভরযোগ্য অনলাইন বইয়ের দোকান। দেশি-বিদেশি অমর সাহিত্যকর্ম ও সাম্প্রতিক প্রকাশনা সরাসরি আপনার ঠিকানায়।
+              </p>
 
-          {/* Column 3: যোগাযোগ ও ঠিকানা */}
-          <div className="lg:col-span-3 space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider font-['Noto_Sans_Bengali']">
-              যোগাযোগ
-            </h4>
-            <div className="space-y-2.5 text-xs sm:text-sm text-zinc-400">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫, বাংলাদেশ</span>
+              {/* Social Circles */}
+              <div className="flex items-center gap-2 pt-1">
+                <a
+                  href="https://facebook.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1877F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                  aria-label="ফেসবুক"
+                >
+                  <Facebook className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#E4405F] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                  aria-label="ইনস্টাগ্রাম"
+                >
+                  <Instagram className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://twitter.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1DA1F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                  aria-label="টুইটার"
+                >
+                  <Twitter className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://youtube.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#FF0000] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                  aria-label="ইউটিউব"
+                >
+                  <Youtube className="w-4 h-4" />
+                </a>
               </div>
-              <div className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>+৮৮০ ১৭০০-০০০০০০</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>support@shesherpata.com</span>
+
+              {/* Payment partner - bKash only */}
+              <div className="pt-2">
+                <span className="text-[11px] text-zinc-400 block mb-1.5 font-medium">নিরাপদ পেমেন্ট পার্টনার:</span>
+                <div className="inline-flex items-center bg-white rounded-lg p-1.5 shadow-xs border border-zinc-200/50">
+                  <img
+                    src="/images/images.png"
+                    alt="bKash Payment"
+                    className="h-7 w-auto object-contain"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Google Play App badge representation */}
-            <div className="pt-2">
-              <span className="text-[11px] text-zinc-500 block mb-1">আমাদের মোবাইল অ্যাপ</span>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-zinc-500 transition-colors cursor-pointer">
-                <div className="w-5 h-5 bg-gradient-to-r from-emerald-500 via-blue-500 to-amber-500 rounded-sm flex items-center justify-center text-white text-[10px] font-bold">
-                  ▶
+            {/* Column 2: বইয়ের বিভাগ */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[#2A2417] pb-2">
+                বইয়ের বিভাগসমূহ
+              </h4>
+              <ul className="space-y-2 text-xs text-zinc-400">
+                {['উপন্যাস', 'থ্রিলার ও রহস্য', 'ইসলামিক সাহিত্য', 'শিশু-কিশোর', 'কবিতা ও প্রবন্ধ', 'ইংরেজি ও অনুবাদ', 'আত্মউন্নয়ন ও ক্যারিয়ার'].map((cat) => (
+                  <li key={cat}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('books')}
+                      className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                    >
+                      {cat}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Column 3: কাস্টমার সাপোর্ট ও পলিসি */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[#2A2417] pb-2">
+                সহায়তা ও তথ্য
+              </h4>
+              <ul className="space-y-2 text-xs text-zinc-400">
+                <li>
+                  <button
+                    type="button"
+                    onClick={onOpenTrackOrder}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer text-amber-400 font-semibold"
+                  >
+                    ➔ অর্ডার ট্র্যাক করুন
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('about')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    আমাদের সম্পর্কে
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('contact')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    যোগাযোগ ও হেল্পলাইন
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('offers')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    চলমান স্পেশাল অফার
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('about')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    ডেলিভারি ও রিটার্ন নীতি
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('about')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    গোপনীয়তা ও নিরাপত্তা নীতি
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4: যোগাযোগ */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[#2A2417] pb-2">
+                যোগাযোগের ঠিকানা
+              </h4>
+              <div className="space-y-2.5 text-xs text-zinc-400">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-[#E5A913] shrink-0 mt-0.5" />
+                  <span>কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫</span>
                 </div>
-                <div className="text-left leading-tight">
-                  <span className="text-[9px] text-zinc-400 uppercase block">GET IT ON</span>
-                  <span className="text-xs font-bold text-white">Google Play</span>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-[#E5A913] shrink-0" />
+                  <span>হটলাইন: ০১৭০০-০০০০০০ / ০১৯০০-০০০০০০</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-[#E5A913] shrink-0" />
+                  <span>ইমেইল: support@shesherpata.com</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 pt-1">
+                  সাপোর্ট টিম সক্রিয়: প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত।
+                </p>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Payment Methods & Bottom Bar */}
-        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-zinc-400 text-xs mr-2">নিরাপদ পেমেন্ট পার্টনার:</span>
-            <span className="px-2.5 py-1 rounded bg-[#E2136E] text-white font-bold text-[11px]">
-              বিকাশ
-            </span>
-            <span className="px-2.5 py-1 rounded bg-[#F7941D] text-white font-bold text-[11px]">
-              নগদ
-            </span>
-            <span className="px-2.5 py-1 rounded bg-blue-700 text-white font-bold text-[11px]">
-              VISA
-            </span>
-            <span className="px-2.5 py-1 rounded bg-[#EB001B] text-white font-bold text-[11px]">
-              MasterCard
-            </span>
-            <span className="px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 font-semibold text-[11px]">
-              ক্যাশ অন ডেলিভারি
-            </span>
-          </div>
-
-          <p className="text-center md:text-right">
-            © ২০২৬ শেষের পাতা। সর্বস্বত্ব সংরক্ষিত।
-          </p>
-        </div>
+      {/* Solid Bright Golden Yellow Bottom Strip */}
+      <div className="w-full bg-[#E5A913] text-zinc-950 font-bold py-2.5 px-4 text-center text-xs sm:text-sm flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto">
+        <span>© ২০২৬ শেষের পাতা (Shesher Pata) — সর্বস্বত্ব সংরক্ষিত।</span>
+        <span className="text-[11px] font-semibold text-zinc-900 mt-1 sm:mt-0 flex items-center justify-center gap-1">
+          বইপ্রেমীদের ভালোবাসায় তৈরি <Heart className="w-3 h-3 fill-zinc-950 inline" />
+        </span>
       </div>
     </footer>
   );
 };
+

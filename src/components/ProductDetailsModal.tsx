@@ -194,7 +194,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                     onClick={() => {
                       addToCart(book, quantity);
                     }}
-                    className="flex-1 min-w-[140px] px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
+                    className="flex-1 min-w-[140px] px-6 py-3 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-extrabold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
                   >
                     <ShoppingBag className="w-4 h-4" />
                     <span>কার্টে যোগ করুন</span>

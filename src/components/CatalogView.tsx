@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Filter, SlidersHorizontal, ArrowUpDown, X, BookOpen, Search } from 'lucide-react';
-import { Book, Category } from '../types';
-import { CATEGORIES } from '../data/categories';
+import { Filter, X, ArrowUpDown, RotateCcw, BookOpen } from 'lucide-react';
+import { Book } from '../types';
 import { ProductCard } from './ProductCard';
+import { CATEGORIES } from '../data/categories';
 import { toBengaliNumber } from '../utils/formatters';
 
 interface CatalogViewProps {
@@ -16,116 +16,261 @@ interface CatalogViewProps {
   onResetToHome: () => void;
 }
 
+const PRICE_RANGES = [
+  { id: 'all', label: 'সকল দাম' },
+  { id: 'under_200', label: '৳২০০ এর নিচে', min: 0, max: 200 },
+  { id: '200_500', label: '৳২০০ - ৳৫০০', min: 200, max: 500 },
+  { id: '500_1000', label: '৳৫০০ - ৳১,০০০', min: 500, max: 1000 },
+  { id: 'over_1000', label: '৳১,০০০ এর বেশি', min: 1000, max: 99999 },
+];
+
+const SORT_OPTIONS = [
+  { id: 'relevance', label: 'প্রাসঙ্গিকতা' },
+  { id: 'popularity', label: 'জনপ্রিয়তা' },
+  { id: 'newest', label: 'নতুন বই' },
+  { id: 'price_low', label: 'দাম: কম থেকে বেশি' },
+  { id: 'price_high', label: 'দাম: বেশি থেকে কম' },
+  { id: 'rating', label: 'সর্বোচ্চ রেটিং' },
+];
+
 export const CatalogView: React.FC<CatalogViewProps> = ({
   books,
-  initialCategory,
-  initialSearch,
+  initialCategory = 'all',
+  initialSearch = '',
   onOpenDetails,
   onQuickView,
   onResetToHome,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-  const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating' | 'discount'>('featured');
-  const [searchFilter, setSearchFilter] = useState<string>(initialSearch || '');
-  const [maxPrice, setMaxPrice] = useState<number>(1200);
-  const [onlyDiscounted, setOnlyDiscounted] = useState<boolean>(false);
+  const [selectedAuthor, setSelectedAuthor] = useState<string>('all');
+  const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
+  const [selectedPriceRange, setSelectedPriceRange] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('relevance');
+  const [inStockOnly, setInStockOnly] = useState<boolean>(false);
+  const [visibleCount, setVisibleCount] = useState<number>(18);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
 
-  // Filtered and Sorted list
-  const filteredBooks = useMemo(() => {
-    return books
-      .filter((book) => {
-        // Category match
-        if (selectedCategory !== 'all') {
-          const cat = CATEGORIES.find((c) => c.id === selectedCategory);
-          if (cat && book.category !== cat.name && !book.tags.includes(cat.name)) {
-            return false;
-          }
-        }
+  // Dynamic Authors and Publishers list from books
+  const authorsList = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (b.author) set.add(b.author);
+    });
+    return Array.from(set).slice(0, 10);
+  }, [books]);
 
-        // Search text
-        if (searchFilter.trim()) {
-          const q = searchFilter.toLowerCase().trim();
-          const match =
-            book.title.toLowerCase().includes(q) ||
-            book.author.toLowerCase().includes(q) ||
-            book.publisher.toLowerCase().includes(q) ||
-            book.category.toLowerCase().includes(q) ||
-            book.tags.some((t) => t.toLowerCase().includes(q));
-          if (!match) return false;
-        }
+  const publishersList = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (b.publisher) set.add(b.publisher);
+    });
+    return Array.from(set).slice(0, 8);
+  }, [books]);
 
-        // Price filter
-        if (book.price > maxPrice) return false;
+  // Filter & Sort Logic
+  const filteredAndSortedBooks = useMemo(() => {
+    let result = [...books];
 
-        // Only discounted
-        if (onlyDiscounted && book.discount <= 0) return false;
+    // Search query filter
+    if (initialSearch && initialSearch.trim() !== '') {
+      const q = initialSearch.toLowerCase().trim();
+      result = result.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.publisher.toLowerCase().includes(q) ||
+          b.category.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
 
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'price_low') return a.price - b.price;
-        if (sortBy === 'price_high') return b.price - a.price;
-        if (sortBy === 'rating') return b.rating - a.rating;
-        if (sortBy === 'discount') return b.discount - a.discount;
-        return (b.isBestseller ? 1 : 0) - (a.isBestseller ? 1 : 0);
-      });
-  }, [books, selectedCategory, searchFilter, maxPrice, onlyDiscounted, sortBy]);
+    // Category filter
+    if (selectedCategory !== 'all') {
+      result = result.filter(
+        (b) =>
+          b.category.includes(selectedCategory) ||
+          b.tags.some((t) => selectedCategory.includes(t) || t.includes(selectedCategory))
+      );
+    }
+
+    // Author filter
+    if (selectedAuthor !== 'all') {
+      result = result.filter((b) => b.author.includes(selectedAuthor));
+    }
+
+    // Publisher filter
+    if (selectedPublisher !== 'all') {
+      result = result.filter((b) => b.publisher.includes(selectedPublisher));
+    }
+
+    // In stock filter
+    if (inStockOnly) {
+      result = result.filter((b) => b.stock > 0);
+    }
+
+    // Price range filter
+    if (selectedPriceRange !== 'all') {
+      const range = PRICE_RANGES.find((r) => r.id === selectedPriceRange);
+      if (range && range.min !== undefined && range.max !== undefined) {
+        result = result.filter((b) => b.price >= range.min && b.price <= range.max);
+      }
+    }
+
+    // Sorting
+    if (sortBy === 'price_low') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price_high') {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'rating') {
+      result.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === 'newest') {
+      result.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+    } else if (sortBy === 'popularity') {
+      result.sort((a, b) => (b.isBestseller ? 1 : 0) - (a.isBestseller ? 1 : 0));
+    }
+
+    return result;
+  }, [books, initialSearch, selectedCategory, selectedAuthor, selectedPublisher, inStockOnly, selectedPriceRange, sortBy]);
+
+  const displayedBooks = filteredAndSortedBooks.slice(0, visibleCount);
+
+  const resetAllFilters = () => {
+    setSelectedCategory('all');
+    setSelectedAuthor('all');
+    setSelectedPublisher('all');
+    setSelectedPriceRange('all');
+    setInStockOnly(false);
+    setSortBy('relevance');
+  };
+
+  const hasActiveFilters =
+    selectedCategory !== 'all' ||
+    selectedAuthor !== 'all' ||
+    selectedPublisher !== 'all' ||
+    selectedPriceRange !== 'all' ||
+    inStockOnly;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 select-none">
-      {/* Breadcrumb / Top Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-200">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-            <button onClick={onResetToHome} className="hover:text-amber-700 cursor-pointer">
+    <div className="w-full select-none font-['Noto_Sans_Bengali'] pb-12">
+      {/* Breadcrumb & Section Header Banner */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500 mb-3">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onResetToHome}
+              className="hover:text-amber-800 transition-colors cursor-pointer"
+            >
               হোম
             </button>
             <span>/</span>
-            <span className="text-zinc-800 font-semibold">বই ও ক্যাটালগ</span>
+            <span className="font-bold text-zinc-900">বইসমূহ ও ক্যাটালগ</span>
+            {selectedCategory !== 'all' && (
+              <>
+                <span>/</span>
+                <span className="text-amber-700 font-semibold">{selectedCategory}</span>
+              </>
+            )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 font-['Noto_Sans_Bengali']">
-            বইয়ের সংগ্রহ
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            মোট {toBengaliNumber(filteredBooks.length)} টি বই পাওয়া গেছে
-          </p>
+
+          <div className="text-xs font-bold text-zinc-700">
+            মোট পাওয়া গেছে: <span className="text-amber-800">{toBengaliNumber(filteredAndSortedBooks.length)}</span> টি বই
+          </div>
         </div>
 
-        {/* Sorting & Filter toggle */}
-        <div className="flex items-center gap-2.5">
-          {/* Mobile Filter trigger */}
-          <button
-            type="button"
-            onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
-            className="lg:hidden px-3.5 py-2 bg-white border border-zinc-300 rounded-xl text-xs font-bold text-zinc-800 flex items-center gap-1.5 shadow-2xs cursor-pointer"
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span>ফিল্টার</span>
-          </button>
+        {/* Header Ribbon */}
+        <div className="bg-[#211E15] text-[#FAF8F4] p-4 sm:p-6 rounded-2xl border border-[#3A3423] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm mb-6">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white">
+              {selectedCategory === 'all' ? 'আমাদের প্রকাশিত সকল বই' : `${selectedCategory} কালেকশন`}
+            </h1>
+            <p className="text-xs text-zinc-300 mt-1">
+              শতভাগ আসল ও মানসম্মত বই সরাসরি আপনার ঠিকানায়
+            </p>
+          </div>
 
           {/* Sort Dropdown */}
-          <div className="flex items-center gap-1.5 bg-white border border-zinc-300 px-3 py-1.5 rounded-xl shadow-2xs text-xs">
-            <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400 shrink-0 flex items-center gap-1">
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#E5A913]" /> সাজান:
+            </span>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-transparent font-semibold text-zinc-800 outline-none cursor-pointer"
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-[#14120B] text-zinc-200 border border-[#3A3423] rounded-lg px-3 py-1.5 text-xs outline-none focus:border-[#E5A913] cursor-pointer"
             >
-              <option value="featured">ফিচার্ড ও বেস্টসেলার</option>
-              <option value="price_low">মূল্য: কম থেকে বেশি</option>
-              <option value="price_high">মূল্য: বেশি থেকে কম</option>
-              <option value="rating">পাঠক রেটিং</option>
-              <option value="discount">সর্বোচ্চ ছাড়</option>
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Sidebar Filters (Desktop) */}
+      {/* Active Filter Chips & Mobile Filter Button */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-4 flex items-center justify-between gap-3">
+        {/* Active Filter Badges */}
+        <div className="flex flex-wrap items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetAllFilters}
+              className="px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 flex items-center gap-1 hover:bg-rose-100 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>ফিল্টার মুছুন</span>
+            </button>
+          )}
+
+          {selectedCategory !== 'all' && (
+            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 border border-amber-200">
+              ক্যাটাগরি: {selectedCategory}
+              <X
+                className="w-3 h-3 cursor-pointer hover:text-amber-700"
+                onClick={() => setSelectedCategory('all')}
+              />
+            </span>
+          )}
+
+          {selectedAuthor !== 'all' && (
+            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 border border-amber-200">
+              লেখক: {selectedAuthor}
+              <X
+                className="w-3 h-3 cursor-pointer hover:text-amber-700"
+                onClick={() => setSelectedAuthor('all')}
+              />
+            </span>
+          )}
+
+          {selectedPriceRange !== 'all' && (
+            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 border border-amber-200">
+              দাম: {PRICE_RANGES.find((r) => r.id === selectedPriceRange)?.label}
+              <X
+                className="w-3 h-3 cursor-pointer hover:text-amber-700"
+                onClick={() => setSelectedPriceRange('all')}
+              />
+            </span>
+          )}
+        </div>
+
+        {/* Mobile Filter Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setIsMobileFilterOpen(true)}
+          className="lg:hidden px-4 py-2 bg-[#211E15] text-[#E5A913] rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>ফিল্টার</span>
+        </button>
+      </div>
+
+      {/* Main Layout: Left Sidebar Filters + Right Product Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+        {/* Left Sidebar Filters */}
         <aside
-          className={`lg:col-span-3 space-y-6 ${
+          className={`w-full lg:w-60 xl:w-64 shrink-0 space-y-6 ${
             isMobileFilterOpen
               ? 'fixed inset-0 z-50 bg-white p-6 overflow-y-auto block'
               : 'hidden lg:block'
@@ -133,171 +278,180 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         >
           {isMobileFilterOpen && (
             <div className="flex items-center justify-between pb-3 border-b border-zinc-200 mb-4">
-              <span className="font-bold text-base text-zinc-900">ফিল্টারসমূহ</span>
+              <span className="font-bold text-base text-zinc-900">ফিল্টার</span>
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="p-1 rounded-lg bg-zinc-100 text-zinc-600"
+                className="p-1.5 rounded-lg bg-zinc-100 text-zinc-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
           )}
 
-          {/* Search within catalog */}
-          <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-2xs space-y-2">
-            <span className="text-xs font-bold text-zinc-800 block">বই অনুসন্ধান</span>
-            <div className="relative">
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="নাম বা লেখক..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white outline-none"
-              />
-              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
-              {searchFilter && (
-                <button
-                  type="button"
-                  onClick={() => setSearchFilter('')}
-                  className="absolute right-2.5 top-2 text-zinc-400 hover:text-zinc-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Categories list */}
-          <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-800">ক্যাটাগরি</span>
-              {selectedCategory !== 'all' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory('all')}
-                  className="text-[11px] text-amber-700 hover:underline font-semibold cursor-pointer"
-                >
-                  সব দেখুন
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-1 text-xs max-h-60 overflow-y-auto pr-1">
-              <button
-                type="button"
+          {/* Section 1: Categories */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E8E3D5] shadow-2xs space-y-3">
+            <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
+              ক্যাটাগরি
+            </h4>
+            <div className="space-y-2 max-h-56 overflow-y-auto text-xs text-zinc-700 pr-1">
+              <label
                 onClick={() => setSelectedCategory('all')}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex justify-between items-center ${
-                  selectedCategory === 'all'
-                    ? 'bg-amber-100/70 text-amber-900 font-bold'
-                    : 'text-zinc-600 hover:bg-zinc-100'
-                }`}
+                className="flex items-center gap-2 cursor-pointer hover:text-amber-800 transition-colors"
               >
-                <span>সব ক্যাটাগরি</span>
-                <span className="text-[10px] text-zinc-400">{toBengaliNumber(books.length)}</span>
-              </button>
-
-              {CATEGORIES.filter((c) => c.id !== 'more').map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex justify-between items-center ${
-                    selectedCategory === cat.id
-                      ? 'bg-amber-100/70 text-amber-900 font-bold'
-                      : 'text-zinc-600 hover:bg-zinc-100'
+                <span
+                  className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                    selectedCategory === 'all' ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
                   }`}
                 >
-                  <span>{cat.name}</span>
-                  <span className="text-[10px] text-zinc-400">
-                    {toBengaliNumber(books.filter((b) => b.category === cat.name).length)}
-                  </span>
-                </button>
-              ))}
+                  {selectedCategory === 'all' && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
+                </span>
+                <span className={selectedCategory === 'all' ? 'font-bold text-zinc-950' : 'text-zinc-600'}>
+                  সকল ক্যাটাগরি
+                </span>
+              </label>
+
+              {CATEGORIES.map((cat) => {
+                const isSelected = selectedCategory === cat.name;
+                return (
+                  <label
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(isSelected ? 'all' : cat.name)}
+                    className="flex items-center justify-between gap-2 cursor-pointer hover:text-amber-800 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
+                        }`}
+                      >
+                        {isSelected && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
+                      </span>
+                      <span className={isSelected ? 'font-bold text-zinc-950' : 'text-zinc-600'}>
+                        {cat.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-medium">({toBengaliNumber(cat.bookCount)})</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
-          {/* Price Range Filter */}
-          <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-zinc-800">সর্বোচ্চ মূল্য</span>
-              <span className="font-extrabold text-amber-800">৳{toBengaliNumber(maxPrice)}</span>
-            </div>
-            <input
-              type="range"
-              min={200}
-              max={1500}
-              step={50}
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(Number(e.target.value))}
-              className="w-full accent-amber-500 cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-zinc-400">
-              <span>৳২০০</span>
-              <span>৳১৫০০+</span>
+          {/* Section 2: Authors */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E8E3D5] shadow-2xs space-y-3">
+            <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
+              লেখক
+            </h4>
+            <div className="space-y-2 max-h-48 overflow-y-auto text-xs text-zinc-700 pr-1">
+              {authorsList.map((auth) => {
+                const isSelected = selectedAuthor === auth;
+                return (
+                  <label
+                    key={auth}
+                    onClick={() => setSelectedAuthor(isSelected ? 'all' : auth)}
+                    className="flex items-center gap-2 cursor-pointer hover:text-amber-800 transition-colors"
+                  >
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                        isSelected ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
+                      }`}
+                    >
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
+                    </span>
+                    <span className={`line-clamp-1 ${isSelected ? 'font-bold text-zinc-950' : 'text-zinc-600'}`}>
+                      {auth}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
-          {/* Discount Toggle */}
-          <div className="bg-white p-4 rounded-2xl border border-zinc-200/80 shadow-2xs">
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-zinc-800">
+          {/* Section 3: Price Range */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E8E3D5] shadow-2xs space-y-3">
+            <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
+              মূল্য পরিসীমা
+            </h4>
+            <div className="space-y-2 text-xs text-zinc-700">
+              {PRICE_RANGES.map((range) => {
+                const isSelected = selectedPriceRange === range.id;
+                return (
+                  <label
+                    key={range.id}
+                    onClick={() => setSelectedPriceRange(range.id)}
+                    className="flex items-center gap-2 cursor-pointer hover:text-amber-800 transition-colors"
+                  >
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                        isSelected ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
+                      }`}
+                    >
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
+                    </span>
+                    <span className={isSelected ? 'font-bold text-zinc-950' : 'text-zinc-600'}>
+                      {range.label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 4: In Stock Checkbox */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E8E3D5] shadow-2xs">
+            <label className="flex items-center gap-2.5 text-xs text-zinc-800 font-semibold cursor-pointer">
               <input
                 type="checkbox"
-                checked={onlyDiscounted}
-                onChange={(e) => setOnlyDiscounted(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+                className="w-4 h-4 rounded text-[#E5A913] focus:ring-[#E5A913]"
               />
-              <span>শুধুমাত্র বিশেষ ছাড়ের বই</span>
+              <span>কেবল স্টকে থাকা বই দেখান</span>
             </label>
           </div>
-
-          {/* Apply button on mobile modal */}
-          {isMobileFilterOpen && (
-            <button
-              type="button"
-              onClick={() => setIsMobileFilterOpen(false)}
-              className="w-full py-3 bg-[#F59E0B] text-zinc-950 font-bold rounded-xl text-sm"
-            >
-              ফিল্টার প্রয়োগ করুন ({toBengaliNumber(filteredBooks.length)} টি বই)
-            </button>
-          )}
         </aside>
 
-        {/* Right Main Grid */}
-        <main className="lg:col-span-9">
-          {filteredBooks.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 sm:gap-4">
-              {filteredBooks.map((book) => (
-                <ProductCard
-                  key={book.id}
-                  book={book}
-                  onOpenDetails={onOpenDetails}
-                  onQuickView={onQuickView}
-                />
+        {/* Right Main Product Area: 5-Column Grid */}
+        <main className="flex-1 min-w-0">
+          {displayedBooks.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {displayedBooks.map((book) => (
+                <div key={book.id} className="h-full">
+                  <ProductCard
+                    book={book}
+                    onOpenDetails={onOpenDetails}
+                    onQuickView={onQuickView}
+                  />
+                </div>
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center bg-white rounded-3xl border border-zinc-200 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 mx-auto">
-                <BookOpen className="w-8 h-8" />
-              </div>
-              <h3 className="text-base font-bold text-zinc-800">
-                দুঃখিত, কোনো বই পাওয়া যায়নি
-              </h3>
+            <div className="bg-white rounded-3xl border border-zinc-200 p-12 text-center space-y-4">
+              <BookOpen className="w-12 h-12 text-zinc-300 mx-auto" />
+              <h3 className="text-lg font-bold text-zinc-800">কোনো বই পাওয়া যায়নি</h3>
               <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                আপনার নির্বাচিত ফিল্টারে কোনো বই খুঁজে পাওয়া যায়নি। ফিল্টার রিসেট করে পুনরায় চেষ্টা করুন।
+                আপনার নির্বাচিত ফিল্টারে কোনো বই খুঁজে পাওয়া যায়নি। ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCategory('all');
-                  setSearchFilter('');
-                  setMaxPrice(1200);
-                  setOnlyDiscounted(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-amber-500 text-zinc-950 text-xs font-bold hover:bg-amber-600 transition-colors"
+                onClick={resetAllFilters}
+                className="px-5 py-2 rounded-xl bg-[#E5A913] text-zinc-950 font-bold text-xs shadow-xs hover:bg-[#D99600] transition-colors cursor-pointer"
               >
-                সব ফিল্টার মুছুন
+                সকল ফিল্টার রিসেট করুন
+              </button>
+            </div>
+          )}
+
+          {/* Load More Button */}
+          {visibleCount < filteredAndSortedBooks.length && (
+            <div className="text-center mt-10">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((prev) => prev + 12)}
+                className="bg-[#211E15] hover:bg-black text-[#E5A913] hover:text-white font-bold px-8 py-2.5 rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer active:scale-95 border border-[#3A3423]"
+              >
+                <span>আরও দেখুন ({toBengaliNumber(filteredAndSortedBooks.length - visibleCount)} টি অবশিষ্ট)</span>
               </button>
             </div>
           )}
@@ -306,3 +460,5 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     </div>
   );
 };
+
+

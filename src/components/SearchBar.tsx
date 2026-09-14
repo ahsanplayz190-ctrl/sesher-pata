@@ -32,9 +32,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           book.author.toLowerCase().includes(q) ||
           book.publisher.toLowerCase().includes(q) ||
           book.category.toLowerCase().includes(q) ||
+          (book.isbn && book.isbn.toLowerCase().includes(q)) ||
           book.tags.some((t) => t.toLowerCase().includes(q))
         );
-      }).slice(0, 6);
+      }).slice(0, 8);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -59,9 +60,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }
   };
 
+  const handleSearchClick = () => {
+    if (searchResults.length > 0) {
+      onSelectBook(searchResults[0]);
+      setIsOpen(false);
+    } else if (onSearchSubmit) {
+      onSearchSubmit(query);
+      setIsOpen(false);
+    }
+  };
+
   return (
     <div ref={containerRef} className={`relative w-full ${isMobile ? 'max-w-full' : 'max-w-xl'}`}>
-      <div className="relative flex items-center">
+      <div className="relative flex items-center shadow-xs rounded-lg overflow-hidden border border-amber-300/40 focus-within:border-[#E5A913] bg-white transition-all">
         <input
           type="text"
           value={query}
@@ -71,11 +82,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="বই, লেখক বা প্রকাশক খুঁজুন..."
-          className="w-full bg-[#FAF8F4] sm:bg-white text-zinc-900 placeholder:text-zinc-400 pl-11 pr-10 py-2.5 sm:py-2.5 rounded-full border border-zinc-300/80 focus:border-[#D97706] focus:ring-2 focus:ring-[#F59E0B]/20 outline-none text-sm transition-all shadow-inner sm:shadow-sm"
+          placeholder="বই, লেখক বা প্রকাশনী খুঁজুন..."
+          className="w-full bg-white text-zinc-900 placeholder:text-zinc-400 px-4 py-2.5 outline-none text-sm font-medium"
         />
-
-        <Search className="absolute left-3.5 w-4 h-4 text-zinc-400 pointer-events-none" />
 
         {query && (
           <button
@@ -84,32 +93,41 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               setQuery('');
               setIsOpen(false);
             }}
-            className="absolute right-3 p-1 text-zinc-400 hover:text-zinc-700 rounded-full transition-colors"
+            className="p-1.5 text-zinc-400 hover:text-zinc-700 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={handleSearchClick}
+          className="bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-extrabold px-5 py-2.5 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+          aria-label="খুঁজুন"
+        >
+          <Search className="w-4 h-4 text-zinc-950 stroke-[2.5]" />
+        </button>
       </div>
 
       {/* Animated Search Suggestion Dropdown */}
       <AnimatePresence>
-        {isOpen && query.trim().length > 0 && (
+        {isOpen && (query.trim().length > 0 || searchResults.length > 0) && (
           <motion.div
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-zinc-200/80 overflow-hidden z-50 divide-y divide-zinc-100"
+            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-zinc-200/80 overflow-hidden z-50 divide-y divide-zinc-100 font-['Noto_Sans_Bengali']"
           >
-            <div className="p-2.5 bg-zinc-50/70 border-b border-zinc-100 flex items-center justify-between text-xs text-zinc-500 font-medium">
+            <div className="p-2.5 bg-zinc-50/90 border-b border-zinc-100 flex items-center justify-between text-xs text-zinc-500 font-medium">
               <span>অনুসন্ধান ফলাফল ({searchResults.length})</span>
               {searchResults.length > 0 && (
-                <span className="text-[11px] text-amber-700 font-medium">ক্লিক করে বিস্তারিত দেখুন</span>
+                <span className="text-[11px] text-[#E5A913] font-bold">ক্লিক করে বিস্তারিত দেখুন</span>
               )}
             </div>
 
             {searchResults.length > 0 ? (
-              <div className="max-h-80 overflow-y-auto divide-y divide-zinc-100">
+              <div className="py-1 max-h-80 overflow-y-auto divide-y divide-zinc-50">
                 {searchResults.map((book) => (
                   <div
                     key={book.id}
@@ -117,37 +135,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                       onSelectBook(book);
                       setIsOpen(false);
                     }}
-                    className="p-3 flex items-center gap-3.5 hover:bg-amber-50/60 cursor-pointer transition-colors group"
+                    className="flex items-center gap-3 p-3 hover:bg-amber-50/60 cursor-pointer transition-colors"
                   >
-                    {/* Thumbnail */}
-                    <div className="w-12 h-16 rounded-md overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 shadow-xs relative">
-                      <img
-                        src={book.image}
-                        alt={book.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        loading="lazy"
-                      />
-                    </div>
-
-                    {/* Book Info */}
+                    <img
+                      src={book.image}
+                      alt={book.title}
+                      className="w-10 h-13 object-cover rounded-md shadow-xs shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-zinc-900 truncate group-hover:text-amber-800 transition-colors">
-                        {book.title}
-                      </h4>
-                      <p className="text-xs text-zinc-500 truncate mt-0.5">
-                        {book.author} • <span className="text-zinc-400">{book.publisher}</span>
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-bold text-amber-700">
-                          {formatPrice(book.price)}
-                        </span>
+                      <h4 className="text-sm font-bold text-zinc-900 truncate">{book.title}</h4>
+                      <p className="text-xs text-zinc-500 truncate">{book.author} — <span className="text-zinc-400">{book.category}</span></p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs font-black text-[#B45309]">{formatPrice(book.price)}</span>
                         {book.originalPrice > book.price && (
-                          <span className="text-[11px] text-zinc-400 line-through">
+                          <span className="text-[10px] text-zinc-400 line-through">
                             {formatPrice(book.originalPrice)}
                           </span>
                         )}
-                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
-                          {book.discount}% ছাড়
+                        <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-bold ml-auto">
+                          {book.publisher}
                         </span>
                       </div>
                     </div>
@@ -155,29 +161,32 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-6 text-center text-zinc-500">
-                <BookOpen className="w-8 h-8 mx-auto text-zinc-300 mb-2" />
-                <p className="text-sm font-medium text-zinc-700">
-                  দুঃখিত, কোনো বই পাওয়া যায়নি
-                </p>
-                <p className="text-xs text-zinc-400 mt-1">
-                  অন্য কোনো নাম, লেখক বা প্রকাশক দিয়ে চেষ্টা করুন
-                </p>
-              </div>
-            )}
+              <div className="p-6 text-center text-xs text-zinc-500 space-y-3">
+                <BookOpen className="w-8 h-8 text-zinc-300 mx-auto" />
+                <div>
+                  <p className="font-bold text-zinc-700 text-sm">কোনো বই পাওয়া যায়নি</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">অন্য কোনো নাম, লেখক বা ক্যাটাগরি লিখে খুঁজুন</p>
+                </div>
 
-            {searchResults.length > 0 && onSearchSubmit && (
-              <div className="p-2 bg-zinc-50 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSearchSubmit(query);
-                    setIsOpen(false);
-                  }}
-                  className="text-xs text-amber-700 hover:text-amber-800 font-semibold py-1 px-3 hover:underline"
-                >
-                  "{query}" সংক্রান্ত সব ফলাফল দেখুন →
-                </button>
+                {/* Popular Tags Quick Search */}
+                <div className="pt-2">
+                  <span className="text-[11px] font-bold text-zinc-400 block mb-2">জনপ্রিয় অনুসন্ধান:</span>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {['মিসির আলি', 'ফেলুদা', 'উপন্যাস', 'ইসলামিক', 'হুমায়ূন আহমেদ', 'রবীন্দ্রনাথ'].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          setQuery(tag);
+                          setIsOpen(true);
+                        }}
+                        className="px-2.5 py-1 rounded-full bg-amber-50 hover:bg-[#E5A913] text-zinc-800 hover:text-zinc-950 font-medium text-[11px] border border-amber-200/70 transition-colors cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>

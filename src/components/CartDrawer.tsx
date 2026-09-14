@@ -278,7 +278,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   setIsCartOpen(false);
                   onProceedToCheckout();
                 }}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-zinc-950 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+                className="w-full py-3.5 px-4 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-extrabold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
               >
                 <span>অর্ডার সম্পন্ন করুন</span>
                 <ArrowRight className="w-4 h-4" />

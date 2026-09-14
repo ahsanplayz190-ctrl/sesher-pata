@@ -4,18 +4,53 @@
 
 @layer base {
   :root {
-    --font-bengali: 'Noto Sans Bengali', sans-serif;
+    --font-bengali: 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --primary-dark: #211E15;
+    --secondary-dark: #1B1910;
+    --tertiary-dark: #14120B;
+    --accent-golden: #E5A913;
+    --accent-golden-hover: #D99600;
+    --accent-golden-light: #FEF9EC;
+    --bg-warm-cream: #FAF8F4;
+    --bg-warm-darker: #F3EFE6;
+    --card-bg: #FFFFFF;
+    --text-primary: #1E1B13;
+    --text-muted: #6B6555;
+    --text-light: #A39C8B;
+    --border-subtle: #E8E3D5;
+    --border-dark: #2A2619;
   }
 
   html {
     scroll-behavior: smooth;
+    font-family: var(--font-bengali);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    font-family: var(--font-noto-sans-bengali), 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: #FAF8F4;
-    color: #18181B;
+    font-family: var(--font-bengali);
+    background-color: var(--bg-warm-cream);
+    color: var(--text-primary);
     overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("/images/background.png");
+    background-repeat: repeat;
+    background-size: 320px auto;
+    background-position: top left;
+    opacity: 0.35;
+    z-index: -1;
+    pointer-events: none;
   }
 }
 
@@ -42,4 +77,33 @@
   background: linear-gradient(90deg, #f0ede6 25%, #f8f6f0 50%, #f0ede6 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+/* Subtle custom scrollbar for desktop dropdowns and drawers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+}
+::-webkit-scrollbar-thumb {
+  background: #D4CEBF;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B3AB97;
+}
+
+/* Print styles for order invoices */
+@media print {
+  body::before {
+    display: none;
+  }
+  header, footer, nav, .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
 }

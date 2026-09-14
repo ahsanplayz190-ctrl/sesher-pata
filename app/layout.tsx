@@ -63,7 +63,7 @@ export default function RootLayout({
   return (
     <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
       <body
-        className="min-h-screen bg-[#FAF8F4] text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950 font-bengali"
+        className="min-h-screen text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950 font-bengali"
         suppressHydrationWarning
       >
         <AppProviders>

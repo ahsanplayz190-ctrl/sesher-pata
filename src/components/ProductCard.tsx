@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Heart, ShoppingBag, Eye, Star } from 'lucide-react';
+import { ShoppingCart, Heart, Eye } from 'lucide-react';
 import { Book } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -11,6 +11,7 @@ interface ProductCardProps {
   book: Book;
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
+  isHighlighted?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -20,127 +21,121 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
-
   const isWished = isInWishlist(book.id);
 
   return (
-    <div className="group relative bg-white rounded-2xl border border-zinc-200/80 hover:border-amber-300 shadow-2xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden select-none">
-      {/* Top Image Container */}
+    <div className="group relative bg-[#FDFBF7] rounded-2xl border border-[#EBDCB9] hover:border-[#E5A913] shadow-xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden select-none font-['Noto_Sans_Bengali'] h-full">
+      {/* Scalloped Red 40% OFF Starburst Seal Badge */}
+      {book.discount > 0 && (
+        <div className="absolute top-2 left-2 z-10 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center filter drop-shadow-xs">
+          <svg
+            viewBox="0 0 100 100"
+            className="w-full h-full text-[#9C1B1B] fill-current"
+          >
+            <path d="M50 2 L56 12 L67 8 L70 19 L82 18 L82 30 L93 33 L89 44 L98 50 L89 56 L93 67 L82 70 L82 82 L70 81 L67 92 L56 88 L50 98 L44 88 L33 92 L30 81 L18 82 L18 70 L7 67 L11 56 L2 50 L11 44 L7 33 L18 30 L18 18 L30 19 L33 8 L44 12 Z" />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center leading-none pointer-events-none">
+            <span className="text-[10px] sm:text-[11px] font-black tracking-tight">{toBengaliNumber(book.discount)}%</span>
+            <span className="text-[7px] font-black uppercase tracking-tighter mt-0.5">OFF</span>
+          </div>
+        </div>
+      )}
+
+      {/* Top Right Wishlist Heart Toggle */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleWishlist(book);
+        }}
+        className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-white/90 hover:bg-white shadow-xs flex items-center justify-center transition-all cursor-pointer opacity-80 group-hover:opacity-100 ${
+          isWished ? 'text-rose-500 opacity-100' : 'text-zinc-400 hover:text-rose-500'
+        }`}
+        title={isWished ? 'পছন্দের তালিকা থেকে মুছুন' : 'পছন্দের তালিকায় রাখুন'}
+        aria-label="উইশলিস্ট"
+      >
+        <Heart className={`w-3.5 h-3.5 ${isWished ? 'fill-rose-500' : ''}`} />
+      </button>
+
+      {/* Top Book Image Container (Off-white / cream background + Golden Bottom Divider) */}
       <div
         onClick={() => onOpenDetails(book)}
-        className="relative aspect-[3/4] w-full overflow-hidden bg-zinc-100 cursor-pointer"
+        className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center cursor-pointer border-b-[3.5px] border-[#DEB038]"
       >
-        {/* Book Cover Image */}
         <img
           src={book.image}
           alt={book.title}
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          className="h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
           loading="lazy"
         />
 
-        {/* Book spine lighting overlay */}
-        <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-gradient-to-r from-black/25 via-white/10 to-transparent pointer-events-none" />
-
-        {/* Discount Badge */}
-        {book.discount > 0 && (
-          <div className="absolute top-2.5 left-2.5 bg-gradient-to-r from-[#DC2626] to-[#EF4444] text-white text-[10px] sm:text-xs font-extrabold px-2 py-0.5 rounded-md shadow-xs pointer-events-none">
-            {toBengaliNumber(book.discount)}% ছাড়
-          </div>
-        )}
-
-        {/* Wishlist Heart Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleWishlist(book);
-          }}
-          className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-xs cursor-pointer ${
-            isWished
-              ? 'bg-rose-500 text-white scale-105 ring-2 ring-rose-300'
-              : 'bg-white/90 text-zinc-600 hover:text-rose-500 hover:bg-white hover:scale-110'
-          }`}
-          aria-label={isWished ? 'উইশলিস্ট থেকে মুছুন' : 'উইশলিস্টে যুক্ত করুন'}
-        >
-          <Heart className={`w-4 h-4 ${isWished ? 'fill-current' : ''}`} />
-        </button>
-
-        {/* Quick View Button - appears on hover (desktop) */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onQuickView(book);
-          }}
-          className="hidden sm:flex absolute bottom-2.5 left-1/2 -translate-x-1/2 items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md translate-y-2 group-hover:translate-y-0 cursor-pointer"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span>কুইক ভিউ</span>
-        </button>
+        {/* Quick View Button on Desktop Hover */}
+        <div className="absolute inset-0 bg-black/15 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center pointer-events-none">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickView(book);
+            }}
+            className="pointer-events-auto bg-white hover:bg-[#E5A913] text-zinc-900 font-bold px-3 py-1.5 rounded-full text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer transform -translate-y-2 group-hover:translate-y-0"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>একনজরে</span>
+          </button>
+        </div>
       </div>
 
       {/* Book Information Section */}
-      <div className="p-3 sm:p-3.5 flex flex-col flex-1 justify-between bg-white">
+      <div className="p-3.5 pt-3 flex flex-col flex-1 justify-between bg-white">
         <div>
-          {/* Category & Publisher */}
-          <div className="flex items-center justify-between gap-1 text-[11px] text-zinc-500 mb-1">
-            <span className="truncate text-amber-700 font-medium">
-              {book.category}
-            </span>
-            {book.rating && (
-              <span className="flex items-center gap-0.5 text-zinc-600 shrink-0 font-medium">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                <span>{toBengaliNumber(book.rating)}</span>
-              </span>
-            )}
-          </div>
-
           {/* Book Title */}
           <h3
             onClick={() => onOpenDetails(book)}
-            className="font-bold text-xs sm:text-sm text-zinc-900 group-hover:text-amber-800 transition-colors line-clamp-1 cursor-pointer"
+            className="font-bold text-sm sm:text-[15px] text-[#221F17] hover:text-[#B45309] transition-colors line-clamp-1 cursor-pointer leading-snug"
             title={book.title}
           >
             {book.title}
           </h3>
 
           {/* Author */}
-          <p className="text-[11px] sm:text-xs text-zinc-500 truncate mt-0.5">
+          <p className="text-xs text-[#8C8474] truncate mt-1 font-normal">
             {book.author}
           </p>
         </div>
 
-        {/* Pricing & Add to Cart */}
-        <div className="mt-3 pt-2.5 border-t border-zinc-100 flex items-center justify-between gap-1.5">
+        {/* Subtle Horizontal Divider */}
+        <div className="h-[1px] bg-[#EBDCB9]/70 w-full my-2.5" />
+
+        {/* Pricing & 'যোগ করুন' Button */}
+        <div className="flex items-center justify-between gap-1.5">
           {/* Prices */}
           <div className="flex flex-col leading-tight">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm sm:text-base font-extrabold text-[#18181B]">
-                {formatPrice(book.price)}
+            {book.originalPrice > book.price && (
+              <span className="text-[11px] text-[#A0988A] line-through font-medium mb-0.5">
+                {formatPrice(book.originalPrice)}
               </span>
-              {book.originalPrice > book.price && (
-                <span className="text-[10px] sm:text-xs text-zinc-400 line-through">
-                  {formatPrice(book.originalPrice)}
-                </span>
-              )}
-            </div>
+            )}
+            <span className="text-base sm:text-lg font-black text-[#1E1B13]">
+              {formatPrice(book.price)}
+            </span>
           </div>
 
-          {/* Add to Cart button */}
+          {/* 'যোগ করুন' button with Cart Icon and Golden Border */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               addToCart(book, 1);
             }}
-            className="shrink-0 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-amber-50 hover:bg-[#F59E0B] text-amber-800 hover:text-zinc-950 font-semibold text-xs transition-all duration-200 cursor-pointer flex items-center gap-1.5 active:scale-95 border border-amber-200/80 hover:border-[#F59E0B]"
+            className="px-3 py-1.5 rounded-xl border-2 border-[#E5C365] bg-[#FFFDF5] hover:bg-[#E5A913] text-[#2D281E] hover:text-zinc-950 font-bold text-xs sm:text-[13px] transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
             title="কার্টে যোগ করুন"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-xs font-bold">কার্ট</span>
+            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.2]" />
+            <span>যোগ করুন</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+

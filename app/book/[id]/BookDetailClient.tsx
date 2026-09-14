@@ -29,7 +29,7 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] text-zinc-900 flex flex-col">
+    <div className="min-h-screen text-zinc-900 flex flex-col">
       <Header
         currentNav="books"
         onNavigate={(navId) => {

@@ -1,30 +1,26 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { ChevronLeft, ChevronRight, BookOpen, Feather, BookMarked, Moon, Smile, Atom, Landmark, TrendingUp, Languages, GraduationCap, Globe, Grid } from 'lucide-react';
-import { CATEGORIES } from '../data/categories';
-import { Category } from '../types';
-import { toBengaliNumber } from '../utils/formatters';
+import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CategoryCarouselProps {
   onSelectCategory: (categoryId: string) => void;
   activeCategoryId?: string;
 }
 
-const iconMap: Record<string, React.ElementType> = {
-  BookOpen,
-  Feather,
-  BookMarked,
-  Moon,
-  Smile,
-  Atom,
-  Landmark,
-  TrendingUp,
-  Languages,
-  GraduationCap,
-  Globe,
-  Grid,
-};
+const QUICK_CATEGORIES = [
+  { id: 'novel', name: 'উপন্যাস', count: '৪২০+', image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80' },
+  { id: 'thriller', name: 'থ্রিলার ও রহস্য', count: '৩১০+', image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=160&q=80' },
+  { id: 'islamic', name: 'ইসলামিক বই', count: '৩৮০+', image: 'https://images.unsplash.com/photo-1584286595398-a59f21d313f5?auto=format&fit=crop&w=160&q=80' },
+  { id: 'children', name: 'শিশু-কিশোর', count: '২৯০+', image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=160&q=80' },
+  { id: 'poetry', name: 'কবিতা ও সাহিত্য', count: '১৯৫+', image: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=160&q=80' },
+  { id: 'self-help', name: 'আত্মউন্নয়ন', count: '২১০+', image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=160&q=80' },
+  { id: 'history', name: 'ইতিহাস ও ঐতিহ্য', count: '২৪০+', image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=160&q=80' },
+  { id: 'scifi', name: 'সায়েন্স ফিকশন', count: '১৮০+', image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=160&q=80' },
+  { id: 'english', name: 'ইংরেজি ও অনুবাদ', count: '৩৫০+', image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=160&q=80' },
+  { id: 'academic', name: 'একাডেমিক বই', count: '৫২০+', image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=160&q=80' },
+  { id: 'package', name: 'প্যাকেজ অফার', count: '৮৫+', image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=160&q=80' },
+];
 
 export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
   onSelectCategory,
@@ -34,93 +30,91 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const scrollAmount = direction === 'left' ? -280 : 280;
-      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      const offset = direction === 'left' ? -260 : 260;
+      scrollContainerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
     }
   };
 
   return (
-    <section className="w-full my-6 sm:my-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Section Header */}
-        <div className="flex items-center justify-between mb-4 sm:mb-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-[#18181B] tracking-tight">
-                বইয়ের ক্যাটাগরি
-              </h2>
-            </div>
-            {/* Small golden decorative underline */}
-            <div className="w-10 h-1 bg-[#F59E0B] rounded-full mt-1.5" />
-          </div>
+    <section className="w-full my-2 sm:my-4 font-['Noto_Sans_Bengali']">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative group/cat">
+        {/* Left scroll button for desktop */}
+        <button
+          type="button"
+          onClick={() => scroll('left')}
+          className="hidden md:flex absolute -left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white text-zinc-700 shadow-md border border-zinc-200 items-center justify-center z-10 opacity-0 group-hover/cat:opacity-100 transition-opacity hover:bg-zinc-50 cursor-pointer"
+          aria-label="বামে স্ক্রোল"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
 
-          {/* Desktop Navigation Arrows */}
-          <div className="hidden sm:flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => scroll('left')}
-              className="w-8 h-8 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 flex items-center justify-center transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-              aria-label="বামে যান"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scroll('right')}
-              className="w-8 h-8 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 flex items-center justify-center transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer"
-              aria-label="ডানে যান"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Carousel Container */}
+        {/* Categories scroll container */}
         <div
           ref={scrollContainerRef}
-          className="flex items-center gap-3.5 sm:gap-4 overflow-x-auto hide-scrollbar pb-3 pt-1 scroll-smooth"
+          className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto hide-scrollbar pb-2 pt-1 scroll-smooth"
         >
-          {CATEGORIES.map((category: Category) => {
-            const IconComponent = iconMap[category.iconName] || BookOpen;
-            const isSelected = activeCategoryId === category.id;
+          {/* All Categories Button Card (Dark Brown with Golden Highlight) */}
+          <div
+            onClick={() => onSelectCategory('all')}
+            className={`group shrink-0 w-24 sm:w-28 bg-[#211E15] rounded-xl p-2 sm:p-2.5 border shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center text-center select-none min-h-[88px] sm:min-h-[96px] ${
+              activeCategoryId === 'all' || !activeCategoryId
+                ? 'border-[#E5A913] ring-1 ring-[#E5A913]'
+                : 'border-[#3A3423] hover:border-[#E5A913]'
+            }`}
+          >
+            <div className="mb-1 text-[#E5A913] group-hover:scale-110 transition-transform">
+              <Menu className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <h3 className="text-xs sm:text-sm font-bold text-[#E5A913] group-hover:text-white transition-colors">
+              সকল বই
+            </h3>
+            <span className="text-[10px] text-zinc-400 font-medium">সমগ্র সংগ্রহ</span>
+          </div>
+
+          {QUICK_CATEGORIES.map((cat) => {
+            const isSelected = activeCategoryId === cat.id;
 
             return (
               <div
-                key={category.id}
-                onClick={() => onSelectCategory(category.id)}
-                className={`group shrink-0 w-28 sm:w-36 md:w-40 bg-white rounded-2xl p-3 sm:p-4 border transition-all duration-200 cursor-pointer flex flex-col items-center text-center select-none ${
+                key={cat.id}
+                onClick={() => onSelectCategory(cat.id)}
+                className={`group shrink-0 w-24 sm:w-28 bg-white rounded-xl p-2 sm:p-2.5 border transition-all duration-200 cursor-pointer flex flex-col items-center text-center select-none shadow-2xs hover:shadow-sm ${
                   isSelected
-                    ? 'border-[#F59E0B] bg-amber-50/50 shadow-md ring-2 ring-[#F59E0B]/30'
-                    : 'border-zinc-200/80 hover:border-amber-400 hover:shadow-md hover:-translate-y-1'
+                    ? 'border-[#E5A913] bg-amber-50/40 ring-1 ring-[#E5A913]'
+                    : 'border-zinc-200/90 hover:border-amber-400'
                 }`}
               >
-                {/* Visual Icon / Image Container */}
-                <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden mb-2.5 bg-zinc-50 border border-zinc-100 flex items-center justify-center shadow-2xs group-hover:border-amber-200 transition-colors">
+                {/* Category Image Box */}
+                <div className="relative w-14 h-12 sm:w-16 sm:h-14 rounded-lg overflow-hidden mb-1.5 bg-zinc-100 border border-zinc-100 flex items-center justify-center">
                   <img
-                    src={category.imageUrl}
-                    alt={category.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    src={cat.image}
+                    alt={cat.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/15 transition-colors">
-                    <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-md" />
-                  </div>
                 </div>
 
                 {/* Category Name */}
-                <h3 className="text-xs sm:text-sm font-bold text-zinc-900 group-hover:text-amber-700 transition-colors line-clamp-1">
-                  {category.name}
+                <h3 className="text-[11px] sm:text-xs font-bold text-zinc-800 group-hover:text-amber-700 transition-colors line-clamp-1 leading-tight">
+                  {cat.name}
                 </h3>
-
-                {/* Book count */}
-                <span className="text-[11px] text-zinc-500 mt-0.5">
-                  {toBengaliNumber(category.bookCount)}+ বই
-                </span>
+                <span className="text-[9px] text-zinc-400 font-normal mt-0.5">{cat.count}</span>
               </div>
             );
           })}
         </div>
+
+        {/* Right scroll button for desktop */}
+        <button
+          type="button"
+          onClick={() => scroll('right')}
+          className="hidden md:flex absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white text-zinc-700 shadow-md border border-zinc-200 items-center justify-center z-10 opacity-0 group-hover/cat:opacity-100 transition-opacity hover:bg-zinc-50 cursor-pointer"
+          aria-label="ডানে স্ক্রোল"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </section>
   );
 };
+

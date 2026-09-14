@@ -54,10 +54,8 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Main Sticky Header with smooth scroll behavior */}
       <header
-        className={`sticky top-0 z-40 w-full transition-all duration-300 ease-out border-b ${
-          isScrolled
-            ? 'bg-white/95 backdrop-blur-md shadow-xs border-zinc-200/80 py-2 sm:py-2.5'
-            : 'bg-[#FAF8F4] border-zinc-200/60 py-3 sm:py-4'
+        className={`sticky top-0 z-40 w-full transition-all duration-300 ease-out border-b border-[#2A2619] bg-[#211E15] ${
+          isScrolled ? 'py-2 sm:py-2.5 shadow-md' : 'py-2.5 sm:py-3.5'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -65,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden lg:flex items-center justify-between gap-6">
             {/* Left: Brand Logo */}
             <div className="shrink-0">
-              <BrandLogo onClick={() => onNavigate('home')} size={isScrolled ? 'md' : 'lg'} />
+              <BrandLogo variant="dark" onClick={() => onNavigate('home')} size={isScrolled ? 'md' : 'lg'} />
             </div>
 
             {/* Center: Large Search Bar */}
@@ -73,68 +71,46 @@ export const Header: React.FC<HeaderProps> = ({
               <SearchBar onSelectBook={onSelectBook} onSearchSubmit={onSearchSubmit} />
             </div>
 
-            {/* Right: Actions (Account, Wishlist, Cart) */}
-            <div className="flex items-center gap-3 shrink-0">
-              {/* Account Button */}
+            {/* Right: Actions (Account, Wishlist, Cart) - Sleek icons as in screenshot */}
+            <div className="flex items-center gap-4 shrink-0">
+              {/* Account Icon */}
               <button
                 type="button"
                 onClick={onOpenAccount}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition-colors cursor-pointer text-sm font-medium"
+                className="p-2 rounded-full text-zinc-200 hover:text-[#E5A913] hover:bg-[#2A2417] transition-colors cursor-pointer"
                 title="অ্যাকাউন্ট"
               >
-                <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-700">
-                  <User className="w-4 h-4" />
-                </div>
-                <div className="text-left hidden xl:block leading-tight">
-                  <span className="text-[11px] text-zinc-500 block">স্বাগতম</span>
-                  <span className="font-semibold text-xs text-zinc-800">অ্যাকাউন্ট</span>
-                </div>
+                <User className="w-5 h-5 text-[#E5A913]" />
               </button>
 
-              {/* Wishlist Button */}
+              {/* Wishlist Icon */}
               <button
                 type="button"
                 onClick={() => setIsWishlistOpen(true)}
-                className="relative flex items-center gap-2 px-3 py-2 rounded-xl text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition-colors cursor-pointer text-sm font-medium"
+                className="relative p-2 rounded-full text-zinc-200 hover:text-[#E5A913] hover:bg-[#2A2417] transition-colors cursor-pointer"
                 title="উইশলিস্ট"
               >
-                <div className="relative w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-700">
-                  <Heart className="w-4 h-4" />
-                  {wishlist.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                      {toBengaliNumber(wishlist.length)}
-                    </span>
-                  )}
-                </div>
-                <div className="text-left hidden xl:block leading-tight">
-                  <span className="text-[11px] text-zinc-500 block">পছন্দের তালিকা</span>
-                  <span className="font-semibold text-xs text-zinc-800">উইশলিস্ট</span>
-                </div>
+                <Heart className="w-5 h-5 text-[#E5A913]" />
+                {wishlist.length > 0 && (
+                  <span className="absolute top-0 right-0 bg-[#D32F2F] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                    {toBengaliNumber(wishlist.length)}
+                  </span>
+                )}
               </button>
 
-              {/* Cart Button */}
+              {/* Cart Icon */}
               <button
                 type="button"
                 onClick={() => setIsCartOpen(true)}
-                className="relative flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-[#18181B] text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-xs active:scale-98 group"
+                className="relative p-2 rounded-full text-zinc-200 hover:text-[#E5A913] hover:bg-[#2A2417] transition-colors cursor-pointer"
                 title="শপিং কার্ট"
               >
-                <div className="relative flex items-center justify-center text-[#F59E0B]">
-                  <ShoppingBag className="w-4 h-4 transition-transform group-hover:scale-110" />
-                  {totalItemsCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-[#F59E0B] text-zinc-950 text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                      {toBengaliNumber(totalItemsCount)}
-                    </span>
-                  )}
-                </div>
-                <div className="text-left leading-tight">
-                  <span className="text-[10px] text-zinc-400 block font-normal">
-                    {toBengaliNumber(totalItemsCount)} টি বই
+                <ShoppingBag className="w-5 h-5 text-[#E5A913]" />
+                {totalItemsCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-[#E5A913] text-zinc-950 text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                    {toBengaliNumber(totalItemsCount)}
                   </span>
-                  <span className="font-bold text-xs text-amber-400">
-                    {formatPrice(subtotal)}
-                  </span>
-                </div>
+                )}
               </button>
             </div>
           </div>
@@ -147,24 +123,24 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsMobileMenuOpen(true)}
-                  className="p-2 -ml-1.5 text-zinc-700 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
+                  className="p-2 -ml-1.5 text-zinc-200 hover:text-white rounded-lg hover:bg-[#2A2619] transition-colors"
                   aria-label="মেনু খুলুন"
                 >
                   <Menu className="w-5 h-5" />
                 </button>
-                <BrandLogo onClick={() => onNavigate('home')} size="sm" />
+                <BrandLogo variant="dark" onClick={() => onNavigate('home')} size="sm" />
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setIsWishlistOpen(true)}
-                  className="relative p-2 text-zinc-700 hover:text-zinc-950 rounded-lg transition-colors"
+                  className="relative p-2 text-zinc-200 hover:text-white rounded-lg transition-colors"
                   aria-label="উইশলিস্ট"
                 >
-                  <Heart className="w-5 h-5" />
+                  <Heart className="w-5 h-5 text-[#E5A913]" />
                   {wishlist.length > 0 && (
-                    <span className="absolute top-1 right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    <span className="absolute top-1 right-1 bg-[#D32F2F] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                       {toBengaliNumber(wishlist.length)}
                     </span>
                   )}
@@ -173,12 +149,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCartOpen(true)}
-                  className="relative p-2 text-zinc-700 hover:text-zinc-950 rounded-lg transition-colors flex items-center"
+                  className="relative p-2 text-zinc-200 hover:text-white rounded-lg transition-colors flex items-center"
                   aria-label="কার্ট"
                 >
-                  <ShoppingBag className="w-5 h-5 text-amber-600" />
+                  <ShoppingBag className="w-5 h-5 text-[#E5A913]" />
                   {totalItemsCount > 0 && (
-                    <span className="absolute top-1 right-1 bg-amber-500 text-zinc-950 text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                    <span className="absolute top-1 right-1 bg-[#E5A913] text-zinc-950 text-[9px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                       {toBengaliNumber(totalItemsCount)}
                     </span>
                   )}
@@ -216,6 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col z-10 overflow-y-auto font-['Noto_Sans_Bengali',sans-serif]">
             <div className="p-4 border-b border-zinc-100 flex items-center justify-between bg-[#FAF8F4]">
               <BrandLogo
+                variant="light"
                 onClick={() => {
                   onNavigate('home');
                   setIsMobileMenuOpen(false);

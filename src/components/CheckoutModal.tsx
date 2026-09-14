@@ -367,16 +367,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       onClick={() => setPaymentMethod('bkash')}
                       className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
                         paymentMethod === 'bkash'
-                          ? 'border-rose-500 bg-rose-50/50 font-bold text-zinc-900 shadow-xs'
+                          ? 'border-[#E2136E] bg-rose-50/50 font-bold text-zinc-900 shadow-xs'
                           : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 font-black text-xs">
-                        বিকাশ
+                      <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                        <img
+                          src="/images/images.png"
+                          alt="bKash"
+                          className="w-full h-full object-contain"
+                        />
                       </div>
                       <div>
                         <span className="block font-bold">bKash (বিকাশ পেমেন্ট)</span>
-                        <span className="text-[11px] text-zinc-500 font-normal">বিকাশ অ্যাপ/গেটওয়ে দিয়ে তাৎক্ষণিক পেমেন্ট</span>
+                        <span className="text-[11px] text-zinc-500 font-normal">বিকাশ গেটওয়ে দিয়ে নিরাপদ ও দ্রুত পেমেন্ট</span>
                       </div>
                     </label>
 

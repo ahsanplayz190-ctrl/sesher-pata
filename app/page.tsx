@@ -70,6 +70,11 @@ export default function HomePage() {
     []
   );
 
+  const islamicBooks = useMemo(
+    () => BOOKS.filter((b) => b.category === 'ইসলামিক সাহিত্য' || b.category === 'ইসলামিক বই' || b.tags?.includes('ইসলামিক')),
+    []
+  );
+
   // Handlers
   const handleSelectCategory = (categoryId: string) => {
     setCatalogCategory(categoryId);
@@ -99,19 +104,43 @@ export default function HomePage() {
     setIsCheckoutOpen(true);
   };
 
+  // Navigation router handling
+  const handleNavClick = (navId: string) => {
+    if (
+      navId === 'novel' ||
+      navId === 'thriller' ||
+      navId === 'islamic' ||
+      navId === 'children' ||
+      navId === 'poetry' ||
+      navId === 'english'
+    ) {
+      const categoryMap: Record<string, string> = {
+        novel: 'উপন্যাস',
+        thriller: 'গোয়েন্দা ও থ্রিলার',
+        islamic: 'ইসলামিক সাহিত্য',
+        children: 'কিশোর সাহিত্য',
+        poetry: 'কবিতা',
+        english: 'বিদেশি বই',
+      };
+      setCatalogCategory(categoryMap[navId] || 'all');
+      setCatalogSearch('');
+      setCurrentNav('books');
+    } else if (navId === 'home') {
+      setCatalogCategory('all');
+      setCatalogSearch('');
+      setCurrentNav('home');
+    } else {
+      setCurrentNav(navId);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen bg-[#FAF8F4] text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950">
+    <div className="min-h-screen text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950">
       {/* Header */}
       <Header
         currentNav={currentNav}
-        onNavigate={(navId) => {
-          setCurrentNav(navId);
-          if (navId === 'home') {
-            setCatalogCategory('all');
-            setCatalogSearch('');
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onNavigate={handleNavClick}
         onSearchSubmit={handleSearchSubmit}
         onSelectBook={(book) => setSelectedBookForDetails(book)}
         onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
@@ -122,7 +151,7 @@ export default function HomePage() {
       <main className="flex-1 pb-16 lg:pb-0">
         {currentNav === 'home' && (
           <div className="space-y-6 sm:space-y-10">
-            {/* Hero Section with interactive slider */}
+            {/* Hero Section with interactive multi-slide carousel */}
             <HeroBanner
               onExploreClick={() => {
                 setCurrentNav('books');
@@ -137,95 +166,11 @@ export default function HomePage() {
               activeCategoryId={catalogCategory}
             />
 
-            {/* Carousel 1: আন্তর্জাতিক অঙ্গন (World Literature & Translations) */}
+            {/* Section 1: আজকের অফার (Discounted) */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6">
               <SectionHeader
-                title="আন্তর্জাতিক অঙ্গন"
-                subtitle="বিশ্বসাহিত্যের বিখ্যাত ক্লাসিক ও আধুনিক সেরা বইয়ের বাংলা রূপান্তর"
-                onViewAll={() => handleViewAllSection('foreign')}
-              />
-              <ProductCarousel
-                books={internationalBooks}
-                onOpenDetails={(book) => setSelectedBookForDetails(book)}
-                onQuickView={(book) => setSelectedBookForQuickView(book)}
-              />
-            </section>
-
-            {/* Carousel 2: বেস্টসেলার বই (Bestsellers) */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6">
-              <div className="flex items-center gap-2 mb-1">
-                <Flame className="w-5 h-5 text-rose-500 fill-rose-500" />
-                <span className="text-xs font-bold text-rose-600 uppercase tracking-wide">
-                  সর্বাধিক পঠিত
-                </span>
-              </div>
-              <SectionHeader
-                title="বেস্টসেলার বই"
-                subtitle="পাঠকদের সর্বাধিক ভালোবাসাপ্রাপ্ত সেরা সাহিত্য ও উপন্যাস"
-                onViewAll={() => handleViewAllSection('all')}
-              />
-              <ProductCarousel
-                books={bestsellerBooks}
-                onOpenDetails={(book) => setSelectedBookForDetails(book)}
-                onQuickView={(book) => setSelectedBookForQuickView(book)}
-              />
-            </section>
-
-            {/* Promotional Literary Banner */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6">
-              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#292524] via-[#1C1917] to-[#18181B] text-white p-6 sm:p-8 md:p-10 shadow-lg border border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="space-y-2 text-left max-w-xl">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold">
-                    <Gift className="w-3.5 h-3.5" />
-                    <span>বিশেষ বইপ্রেমী অফার</span>
-                  </div>
-                  <h3 className="text-xl sm:text-3xl font-extrabold tracking-tight leading-tight">
-                    যেকোনো ৩টি বই অর্ডারে ফ্রি হোম ডেলিভারি!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-zinc-300">
-                    চেকআউটের সময় কুপন কোড ব্যবহার করুন: <span className="font-mono font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/30">SHESHER10</span>
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentNav('books');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="shrink-0 px-6 py-3 bg-[#F59E0B] hover:bg-[#D97706] text-zinc-950 font-bold rounded-xl text-sm sm:text-base transition-all flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
-                >
-                  <span>অফারটি নিন</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </section>
-
-            {/* Carousel 3: সাম্প্রতিক প্রকাশনা (New Releases) */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6">
-              <div className="flex items-center gap-2 mb-1">
-                <BookMarked className="w-5 h-5 text-amber-500" />
-                <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
-                  টাটকা প্রকাশনা
-                </span>
-              </div>
-              <SectionHeader
-                title="সাম্প্রতিক প্রকাশনা"
-                subtitle="এ বছরের আলোচিত ও প্রশংসিত নতুন সংস্করণ"
-                onViewAll={() => handleViewAllSection('all')}
-              />
-              <ProductCarousel
-                books={newReleaseBooks}
-                onOpenDetails={(book) => setSelectedBookForDetails(book)}
-                onQuickView={(book) => setSelectedBookForQuickView(book)}
-              />
-            </section>
-
-            {/* Carousel 4: বিশেষ ছাড়ের বই (Discounted Books) */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6">
-              <SectionHeader
-                title="বিশেষ ছাড়ের বই"
-                subtitle="২০% থেকে ৩৫% পর্যন্ত বিশেষ ছাড়ে আপনার পছন্দের বই কিনুন"
+                title="আজকের বিশেষ অফার"
+                subtitle="সর্বোচ্চ ২০% থেকে ৪০% ছাড়ে পছন্দের সেরা বই"
                 onViewAll={() => handleViewAllSection('all')}
               />
               <ProductCarousel
@@ -235,12 +180,69 @@ export default function HomePage() {
               />
             </section>
 
-            {/* Carousel 5: কিশোর সাহিত্য ও গোয়েন্দা (Detective & Juvenile) */}
+            {/* Section 2: পাঠকের পছন্দ (Bestsellers) */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6">
               <SectionHeader
-                title="কিশোর সাহিত্য ও গোয়েন্দা"
-                subtitle="ফেলুদা, ব্যোমকেশ, প্রফেসর শঙ্কু এবং রোমাঞ্চকর অ্যাডভেঞ্চার"
-                onViewAll={() => handleViewAllSection('children')}
+                title="পাঠকের পছন্দ ও জনপ্রিয় বই"
+                subtitle="বাংলাদেশের সর্বাধিক পঠিত ও আলোচিত বইসমূহ"
+                onViewAll={() => handleViewAllSection('all')}
+              />
+              <ProductCarousel
+                books={bestsellerBooks}
+                onOpenDetails={(book) => setSelectedBookForDetails(book)}
+                onQuickView={(book) => setSelectedBookForQuickView(book)}
+              />
+            </section>
+
+            {/* Mid-Page Promotional Banner: বইমেলা বিশেষ কুপন */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 my-4">
+              <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-r from-[#1B1910] via-[#282419] to-[#1B1910] border border-[#3A3423] p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+                <div className="space-y-2 text-center md:text-left">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5A913] text-zinc-950 text-xs font-black">
+                    <Gift className="w-3.5 h-3.5" />
+                    <span>বিশেষ সুযোগ</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white">
+                    যেকোনো ৩টি বই কিনলেই সারা দেশে ফ্রি হোম ডেলিভারি!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-zinc-300">
+                    চেকআউটে কুপন কোড ব্যবহার করুন: <strong className="text-[#E5A913] font-bold">SHESHER10</strong>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentNav('books');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-6 py-3 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
+                >
+                  অফার উপভোগ করুন ➔
+                </button>
+              </div>
+            </div>
+
+            {/* Section 3: নতুন প্রকাশনা (New Releases) */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6">
+              <SectionHeader
+                title="নতুন প্রকাশনা"
+                subtitle="সাম্প্রতিক প্রকাশিত নতুন ও আলোচিত বই"
+                onViewAll={() => handleViewAllSection('all')}
+              />
+              <ProductCarousel
+                books={newReleaseBooks}
+                onOpenDetails={(book) => setSelectedBookForDetails(book)}
+                onQuickView={(book) => setSelectedBookForQuickView(book)}
+              />
+            </section>
+
+            {/* Section 4: থ্রিলার, গোয়েন্দা ও রহস্য */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6">
+              <SectionHeader
+                title="থ্রিলার, গোয়েন্দা ও রহস্য"
+                subtitle="ফেলুদা, মিসির আলি ও টানটান উত্তেজনার রোমাঞ্চকর গল্প"
+                onViewAll={() => handleViewAllSection('কিশোর সাহিত্য')}
               />
               <ProductCarousel
                 books={juvenileAndMysteryBooks}
@@ -249,12 +251,12 @@ export default function HomePage() {
               />
             </section>
 
-            {/* Carousel 6: কালজয়ী উপন্যাস ও কবিতা */}
+            {/* Section 5: চিরায়ত বাংলা উপন্যাস ও কবিতা */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6">
               <SectionHeader
-                title="কালজয়ী উপন্যাস ও সাহিত্য"
-                subtitle="বাঙালি মননের অম্লান সৃষ্টি — রবীন্দ্রনাথ, নজরুল ও শরৎচন্দ্রের রচনা"
-                onViewAll={() => handleViewAllSection('novel')}
+                title="চিরায়ত বাংলা উপন্যাস ও সাহিত্য"
+                subtitle="রবীন্দ্রনাথ, নজরুল, শরৎচন্দ্র সহ কালজয়ী সাহিত্যসমগ্র"
+                onViewAll={() => handleViewAllSection('উপন্যাস')}
               />
               <ProductCarousel
                 books={classicAndNovelBooks}
@@ -263,25 +265,75 @@ export default function HomePage() {
               />
             </section>
 
-            {/* Literary Inspiration Card */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2">
-              <div className="bg-amber-100/50 border border-amber-200/80 rounded-3xl p-8 text-center space-y-3">
-                <span className="text-amber-800 text-xs font-bold uppercase tracking-widest block">
-                  — পাঠক অনুপ্রেরণা —
-                </span>
-                <blockquote className="text-lg sm:text-2xl font-bold text-zinc-800 max-w-2xl mx-auto leading-snug">
-                  "মানুষ বই পড়ে শখ করে নয়, মানুষ বই পড়ে বাঁচার প্রয়োজনে।"
-                </blockquote>
-                <p className="text-xs sm:text-sm text-amber-900 font-semibold">
-                  — প্রমথ চৌধুরী
-                </p>
-              </div>
+            {/* Section 6: ইসলামিক সাহিত্য */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6">
+              <SectionHeader
+                title="ইসলামিক সাহিত্য ও চিন্তাধারা"
+                subtitle="আত্মশুদ্ধি, ইতিহাস ও জীবন গঠনের উপযোগী বইসমূহ"
+                onViewAll={() => handleViewAllSection('ইসলামিক সাহিত্য')}
+              />
+              <ProductCarousel
+                books={islamicBooks}
+                onOpenDetails={(book) => setSelectedBookForDetails(book)}
+                onQuickView={(book) => setSelectedBookForQuickView(book)}
+              />
             </section>
+
+            {/* Section 7: বিশ্বসাহিত্য ও অনুবাদ */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6">
+              <SectionHeader
+                title="বিশ্বসাহিত্য ও অনুবাদ গ্রন্থ"
+                subtitle="আন্তর্জাতিক পুরস্কারপ্রাপ্ত ও জনপ্রিয় বিদেশি অনুবাদ বই"
+                onViewAll={() => handleViewAllSection('বিদেশি বই')}
+              />
+              <ProductCarousel
+                books={internationalBooks}
+                onOpenDetails={(book) => setSelectedBookForDetails(book)}
+                onQuickView={(book) => setSelectedBookForQuickView(book)}
+              />
+            </section>
+
+            {/* Trust Assurance Section */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-white rounded-3xl border border-[#E8E3D5] shadow-xs text-center">
+                <div className="space-y-1 p-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 font-bold flex items-center justify-center mx-auto text-lg">
+                    📖
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-zinc-900">১০০% আসল বই</h4>
+                  <p className="text-[11px] text-zinc-500">সকল প্রকাশনীর আসল প্রিন্ট</p>
+                </div>
+
+                <div className="space-y-1 p-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 font-bold flex items-center justify-center mx-auto text-lg">
+                    🚀
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-zinc-900">সারা দেশে ডেলিভারি</h4>
+                  <p className="text-[11px] text-zinc-500">দ্রুততম সময়ে সরাসরি আপনার দরজায়</p>
+                </div>
+
+                <div className="space-y-1 p-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 font-bold flex items-center justify-center mx-auto text-lg">
+                    💵
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-zinc-900">ক্যাশ অন ডেলিভারি</h4>
+                  <p className="text-[11px] text-zinc-500">বই পেয়ে মূল্য পরিশোধের সুবিধা</p>
+                </div>
+
+                <div className="space-y-1 p-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 font-bold flex items-center justify-center mx-auto text-lg">
+                    🔄
+                  </div>
+                  <h4 className="font-bold text-xs sm:text-sm text-zinc-900">সহজ রিটার্ন</h4>
+                  <p className="text-[11px] text-zinc-500">৭ দিনের মধ্যে পরিবর্তনের নিশ্চয়তা</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Books & Catalog View */}
-        {currentNav === 'books' && (
+        {(currentNav === 'books' || currentNav === 'publishers' || currentNav === 'packages') && (
           <CatalogView
             books={BOOKS}
             initialCategory={catalogCategory}

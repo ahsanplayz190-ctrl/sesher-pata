@@ -40,7 +40,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       {/* Custom Brand Logo Image Container */}
       <div
         className={`relative overflow-hidden rounded-xl sm:rounded-2xl shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-xs border ${
-          isLight ? 'border-amber-200/80 bg-amber-50/50' : 'border-zinc-700 bg-zinc-800'
+          isLight ? 'border-amber-200/80 bg-amber-50/50' : 'border-amber-500/30 bg-[#2C2719]'
         }`}
       >
         <img
@@ -50,19 +50,19 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         />
       </div>
 
-      {/* Optional Brand Typography Accent if requested */}
+      {/* Brand Typography Accent */}
       {showText && (
         <div className="flex flex-col leading-tight">
           <span
-            className={`font-extrabold tracking-tight font-['Noto_Sans_Bengali'] ${textSizes[size]} ${
-              isLight ? 'text-zinc-900 group-hover:text-amber-800' : 'text-white group-hover:text-amber-400'
+            className={`font-black tracking-tight font-['Noto_Sans_Bengali'] ${textSizes[size]} ${
+              isLight ? 'text-[#1F1C15] group-hover:text-amber-800' : 'text-white group-hover:text-[#E5A913]'
             } transition-colors`}
           >
             শেষের পাতা
           </span>
           <span
-            className={`text-[10px] tracking-wider uppercase font-semibold ${
-              isLight ? 'text-amber-700/80' : 'text-amber-400/80'
+            className={`text-[10.5px] tracking-wide uppercase font-bold ${
+              isLight ? 'text-amber-800' : 'text-[#E5A913]'
             }`}
           >
             অনলাইন বইয়ের দোকান
