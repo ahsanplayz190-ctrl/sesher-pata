@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, ShoppingBag, Heart, Star, ArrowRight } from 'lucide-react';
 import { Book } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useLanguage } from '../context/LanguageContext';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
+import { trackViewContent } from '../utils/metaPixel';
 
 interface QuickViewModalProps {
   book: Book;
@@ -21,8 +23,16 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
 }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { getBookDisplayName } = useLanguage();
 
   const isWished = isInWishlist(book.id);
+  const displayName = getBookDisplayName(book);
+
+  useEffect(() => {
+    if (book) {
+      trackViewContent(book);
+    }
+  }, [book?.id]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
@@ -59,7 +69,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
             <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
               {book.category}
             </span>
-            <h3 className="text-xl font-bold text-zinc-900 mt-1 mb-0.5">{book.title}</h3>
+            <h3 className="text-xl font-bold text-zinc-900 mt-1 mb-0.5">{displayName}</h3>
             <p className="text-xs text-zinc-500 mb-2">
               লেখক: <span className="font-semibold text-zinc-700">{book.author}</span> • {book.publisher}
             </p>

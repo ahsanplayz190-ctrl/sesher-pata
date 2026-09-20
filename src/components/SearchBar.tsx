@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BOOKS } from '../data/books';
 import { Book } from '../types';
 import { formatPrice } from '../utils/formatters';
+import { trackSearch } from '../utils/metaPixel';
 
 interface SearchBarProps {
   onSelectBook: (book: Book) => void;
@@ -50,6 +51,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      if (query.trim()) {
+        trackSearch(query.trim());
+      }
       if (searchResults.length > 0) {
         onSelectBook(searchResults[0]);
         setIsOpen(false);
@@ -61,6 +65,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   const handleSearchClick = () => {
+    if (query.trim()) {
+      trackSearch(query.trim());
+    }
     if (searchResults.length > 0) {
       onSelectBook(searchResults[0]);
       setIsOpen(false);

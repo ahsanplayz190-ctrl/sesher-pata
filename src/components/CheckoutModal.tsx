@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, ShieldCheck, Truck, CreditCard, Banknote, Smartphone, ArrowRight, Printer, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useData } from '../context/DataContext';
+import { OrderDetails } from '../types';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
+import { trackInitiateCheckout, trackPurchase } from '../utils/metaPixel';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -22,6 +25,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   onOrderSuccess,
 }) => {
+  const { addOrder } = useData();
   const {
     cart,
     clearCart,
@@ -50,6 +54,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [completedOrderId, setCompletedOrderId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Track InitiateCheckout only once per modal open session
+  const hasInitiatedRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !completedOrderId && cart.length > 0 && !hasInitiatedRef.current) {
+      hasInitiatedRef.current = true;
+      trackInitiateCheckout(cart, grandTotal);
+    }
+    if (!isOpen) {
+      hasInitiatedRef.current = false;
+    }
+  }, [isOpen, completedOrderId, cart, grandTotal]);
+
   if (!isOpen) return null;
 
   const handleSubmitOrder = (e: React.FormEvent) => {
@@ -67,9 +83,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setFormError(null);
     setIsSubmitting(true);
 
-    // Simulate order placement
+    // Order placement
     setTimeout(() => {
       const orderId = `SP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const newOrder: OrderDetails = {
+        orderId,
+        date: new Date().toLocaleDateString('bn-BD'),
+        customerName: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        address: address.trim(),
+        district,
+        thana: thana.trim(),
+        postalCode: postalCode.trim(),
+        deliveryOption,
+        deliveryFee,
+        paymentMethod,
+        items: [...cart],
+        subtotal,
+        discountAmount,
+        couponCode,
+        total: grandTotal,
+        status: 'pending',
+        orderNotes: orderNotes.trim(),
+      };
+
+      addOrder(newOrder);
+      trackPurchase(newOrder);
+
       setCompletedOrderId(orderId);
       setIsSubmitting(false);
       clearCart();

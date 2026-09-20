@@ -5,6 +5,7 @@ import { Book, Category } from '../types';
 import { ProductCard } from './ProductCard';
 import { BookOpen, Feather } from 'lucide-react';
 import { toBengaliNumber } from '../utils/formatters';
+import { useData } from '../context/DataContext';
 
 interface AuthorsViewProps {
   books: Book[];
@@ -13,69 +14,23 @@ interface AuthorsViewProps {
   onResetToHome: () => void;
 }
 
-interface AuthorBio {
-  name: string;
-  era: string;
-  role: string;
-  bio: string;
-  image: string;
-}
-
-const AUTHORS_LIST: AuthorBio[] = [
-  {
-    name: 'হুমায়ূন আহমেদ',
-    era: '১৯৪৮ – ২০১২',
-    role: 'কথাসাহিত্যিক, নাট্যকার ও চলচ্চিত্র নির্মাতা',
-    bio: 'আধুনিক বাংলা সাহিত্যের সবচেয়ে জনপ্রিয় কথাসাহিত্যিক। মিসির আলি ও হিমু চরিত্রের স্রষ্টা।',
-    image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'রবীন্দ্রনাথ ঠাকুর',
-    era: '১৮৬১ – ১৯৪১',
-    role: 'বিশ্বকবি, নোবেল বিজয়ী সাহিত্যিক',
-    bio: 'বাংলা ভাষা ও সাহিত্যের রূপকার। গীতাঞ্জলি কাব্যের জন্য ১৯১৩ সালে নোবেল পুরস্কার লাভ করেন।',
-    image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'কাজী নজরুল ইসলাম',
-    era: '১৮৯৯ – ১৯৭৬',
-    role: 'জাতীয় কবি, বিদ্রোহী কবি ও সুরস্রষ্টা',
-    bio: 'বাংলা সাহিত্যের অন্যতম শ্রেষ্ঠ কবি, দ্রোহ ও ভালোবাসার অবিসংবাদিত কণ্ঠস্বর।',
-    image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'সত্যজিৎ রায়',
-    era: '১৯২১ – ১৯৯২',
-    role: 'চলচ্চিত্রকার, লেখক ও চিত্রশিল্পী',
-    bio: 'অস্কারজয়ী চলচ্চিত্রকার এবং বাংলা সাহিত্যের জনপ্রিয় গোয়েন্দা ফেলুদা ও প্রফেসর শঙ্কুর স্রষ্টা।',
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'সুনীল গঙ্গোপাধ্যায়',
-    era: '১৯৩৪ – ২০১২',
-    role: 'কবি, ঔপন্যাসিক ও ছোটগল্পকার',
-    bio: 'নীললোহিত ছদ্মনামে খ্যাত। সেই সময়, প্রথম আলো এবং কাকাবাবু সিরিজের অমর স্রষ্টা।',
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'শরৎচন্দ্র চট্টোপাধ্যায়',
-    era: '১৮৭৬ – ১৯৩৮',
-    role: 'অপরাজেয় কথাশিল্পী',
-    bio: 'বাঙালি সমাজজীবনের নিখুঁত রূপকার। দেবদাস, চরিত্রহীন, শ্রীকান্ত উপন্যাসের লেখক।',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  },
-];
-
 export const AuthorsView: React.FC<AuthorsViewProps> = ({
   books,
   onOpenDetails,
   onQuickView,
   onResetToHome,
 }) => {
-  const [selectedAuthor, setSelectedAuthor] = useState<string>(AUTHORS_LIST[0].name);
+  const { authors } = useData();
+  const [selectedAuthor, setSelectedAuthor] = useState<string>(authors[0]?.name || 'হুমায়ূন আহমেদ');
 
   const authorBooks = books.filter((b) => b.author.includes(selectedAuthor));
-  const currentBio = AUTHORS_LIST.find((a) => a.name === selectedAuthor) || AUTHORS_LIST[0];
+  const currentBio = authors.find((a) => a.name === selectedAuthor) || authors[0] || {
+    name: selectedAuthor,
+    era: '',
+    role: 'লেখক',
+    bio: '',
+    image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80',
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 select-none">
@@ -99,7 +54,7 @@ export const AuthorsView: React.FC<AuthorsViewProps> = ({
 
       {/* Authors list carousel / pill tabs */}
       <div className="flex items-center gap-3 overflow-x-auto hide-scrollbar pb-3 mb-6">
-        {AUTHORS_LIST.map((author) => {
+        {authors.map((author) => {
           const isSelected = selectedAuthor === author.name;
           return (
             <button

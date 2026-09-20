@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, ShoppingBag, Heart, MapPin, LogIn, Check } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { trackCompleteRegistration } from '../utils/metaPixel';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     e.preventDefault();
     if (phone.trim()) {
       setIsLoggedIn(true);
+      trackCompleteRegistration(phone.trim(), 'phone');
       showToast('লগইন সফল হয়েছে! স্বাগতম শেষের পাতায়।', 'success');
     }
   };

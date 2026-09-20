@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Book, CartItem } from '../types';
 import { useToast } from './ToastContext';
+import { trackAddToCart } from '../utils/metaPixel';
 
 interface CartContextType {
   cart: CartItem[];
@@ -76,6 +77,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     showToast(`"${book.title}" বইটি কার্টে যোগ হয়েছে ✓`, 'success');
+    trackAddToCart(book, quantity);
   };
 
   const removeFromCart = (bookId: string) => {

@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Search, Package, Truck, CheckCircle2, Clock } from 'lucide-react';
-import { toBengaliNumber } from '../utils/formatters';
+import { X, Search, Package, Truck, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { toBengaliNumber, formatPrice } from '../utils/formatters';
+import { useData } from '../context/DataContext';
+import { OrderDetails } from '../types';
 
 interface TrackOrderModalProps {
   isOpen: boolean;
@@ -11,16 +13,31 @@ interface TrackOrderModalProps {
 }
 
 export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClose }) => {
+  const { orders } = useData();
   const [query, setQuery] = useState('');
-  const [tracked, setTracked] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [matchedOrder, setMatchedOrder] = useState<OrderDetails | null>(null);
 
   if (!isOpen) return null;
 
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      setTracked(true);
+      const q = query.trim().toLowerCase();
+      const found = orders.find(
+        (o) => o.orderId.toLowerCase() === q || o.phone.toLowerCase() === q
+      );
+      setMatchedOrder(found || null);
+      setSearched(true);
     }
+  };
+
+  const statusBengali: Record<string, { label: string; color: string }> = {
+    pending: { label: 'অর্ডার প্রক্রিয়াধীন (Pending)', color: 'bg-amber-100 text-amber-900 border-amber-300' },
+    confirmed: { label: 'অর্ডার নিশ্চিত করা হয়েছে (Confirmed)', color: 'bg-blue-100 text-blue-900 border-blue-300' },
+    shipped: { label: 'কুরিয়ারে হস্তান্তর হয়েছে (Shipped)', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
+    delivered: { label: 'ডেলিভারি সম্পন্ন (Delivered)', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+    cancelled: { label: 'অর্ডার বাতিল (Cancelled)', color: 'bg-rose-100 text-rose-900 border-rose-300' },
   };
 
   return (
@@ -66,65 +83,103 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
           </button>
         </form>
 
-        {tracked ? (
-          <div className="space-y-4 pt-2 border-t border-zinc-100">
-            <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-2xl flex justify-between items-center text-xs">
-              <div>
-                <span className="text-zinc-500 block">অর্ডার আইডি:</span>
-                <span className="font-bold text-zinc-900">{query.toUpperCase()}</span>
+        {searched ? (
+          matchedOrder ? (
+            <div className="space-y-4 pt-2 border-t border-zinc-100">
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl flex flex-wrap justify-between items-center gap-2 text-xs">
+                <div>
+                  <span className="text-zinc-500 block">অর্ডার আইডি:</span>
+                  <span className="font-bold text-zinc-900">{matchedOrder.orderId}</span>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full font-bold border ${statusBengali[matchedOrder.status]?.color || 'bg-zinc-100 text-zinc-800'}`}>
+                  {statusBengali[matchedOrder.status]?.label || matchedOrder.status}
+                </span>
               </div>
-              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold">
-                কুরিয়ারে হস্তান্তর হয়েছে
-              </span>
+
+              {/* Customer & Delivery Summary */}
+              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-xs space-y-1">
+                <p><span className="text-zinc-500">গ্রাহক:</span> <strong className="text-zinc-800">{matchedOrder.customerName}</strong> ({matchedOrder.phone})</p>
+                <p><span className="text-zinc-500">ঠিকানা:</span> {matchedOrder.address}, {matchedOrder.thana}, {matchedOrder.district}</p>
+                <p><span className="text-zinc-500">মোট মূল্য:</span> <strong className="text-amber-700">{formatPrice(matchedOrder.total)}</strong> ({matchedOrder.paymentMethod === 'cod' ? 'ক্যাশ অন ডেলিভারি' : matchedOrder.paymentMethod.toUpperCase()})</p>
+                <p><span className="text-zinc-500">বইসমূহ:</span> {matchedOrder.items.map(i => `${i.book.title} (x${toBengaliNumber(i.quantity)})`).join(', ')}</p>
+              </div>
+
+              {/* Tracking Milestones based on status */}
+              <div className="space-y-3 pl-2 text-xs">
+                <div className="flex items-start gap-3 relative">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                    ['pending', 'confirmed', 'shipped', 'delivered'].includes(matchedOrder.status)
+                      ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-400'
+                  }`}>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900">অর্ডার গ্রহণ করা হয়েছে</h4>
+                    <p className="text-zinc-500 text-[11px]">{matchedOrder.date}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 relative">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                    ['confirmed', 'shipped', 'delivered'].includes(matchedOrder.status)
+                      ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-400'
+                  }`}>
+                    <Package className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900">প্যাকেজিং ও প্রস্তুতি</h4>
+                    <p className="text-zinc-500 text-[11px]">
+                      {['confirmed', 'shipped', 'delivered'].includes(matchedOrder.status)
+                        ? 'নিশ্চিত করা হয়েছে এবং মোড়কজাত সম্পন্ন'
+                        : 'অপেক্ষমাণ...'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 relative">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                    ['shipped', 'delivered'].includes(matchedOrder.status)
+                      ? 'bg-amber-500 text-white animate-pulse' : 'bg-zinc-200 text-zinc-400'
+                  }`}>
+                    <Truck className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900">কুরিয়ার ডেলিভারি রাইডারের পথে</h4>
+                    <p className="text-zinc-500 text-[11px]">
+                      {['shipped', 'delivered'].includes(matchedOrder.status)
+                        ? 'ডেলিভারি পার্টনারের মাধ্যমে প্রেরিত হয়েছে'
+                        : 'শিগগিরই কুরিয়ারে হস্তান্তর করা হবে'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 relative">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                    matchedOrder.status === 'delivered'
+                      ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-400'
+                  }`}>
+                    <Clock className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900">ডেলিভারি সম্পন্ন</h4>
+                    <p className="text-zinc-500 text-[11px]">
+                      {matchedOrder.status === 'delivered' ? 'সফলভাবে গ্রাহকের হাতে পৌঁছে দেওয়া হয়েছে' : '২৪-৭২ ঘণ্টার মধ্যে সরবরাহ করা হবে'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            {/* Tracking Milestones */}
-            <div className="space-y-4 pl-2 text-xs">
-              <div className="flex items-start gap-3 relative">
-                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-zinc-900">অর্ডার গ্রহণ করা হয়েছে</h4>
-                  <p className="text-zinc-500 text-[11px]">গতকাল, বিকেল ৪:২০</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 relative">
-                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                  <Package className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-zinc-900">প্যাকেজিং সম্পন্ন ও সুরক্ষিত বাঁধাই</h4>
-                  <p className="text-zinc-500 text-[11px]">আজ, সকাল ১০:১৫</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 relative">
-                <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 animate-pulse">
-                  <Truck className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-amber-900">কুরিয়ার ডেলিভারি রাইডারের পথে</h4>
-                  <p className="text-zinc-500 text-[11px]">আজ, দুপুর ১:০০ • পেপারফ্লাই / রেডএক্স</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 relative opacity-50">
-                <div className="w-6 h-6 rounded-full bg-zinc-200 text-zinc-500 flex items-center justify-center shrink-0">
-                  <Clock className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-zinc-700">বই ডেলিভারি সম্পন্ন হবে</h4>
-                  <p className="text-zinc-500 text-[11px]">আনুমানিক: আগামী ২৪-৪৮ ঘণ্টার মধ্যে</p>
-                </div>
-              </div>
+          ) : (
+            <div className="text-center py-6 text-zinc-500 text-xs space-y-2">
+              <AlertCircle className="w-8 h-8 mx-auto text-amber-500" />
+              <p className="font-bold text-zinc-800">কোনো অর্ডার পাওয়া যায়নি!</p>
+              <p className="text-zinc-400">"{query}" নম্বর দিয়ে কোনো অর্ডার নথিভুক্ত নেই। সঠিক নম্বর লিখে আবার চেষ্টা করুন।</p>
             </div>
-          </div>
+          )
         ) : (
           <div className="text-center py-6 text-zinc-400 text-xs">
             <Package className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
-            <p>আপনার অর্ডার নম্বর দিয়ে ট্র্যাক করুন</p>
+            <p>আপনার অর্ডার নম্বর বা মোবাইল নম্বর দিয়ে খুঁজুন</p>
           </div>
         )}
       </motion.div>

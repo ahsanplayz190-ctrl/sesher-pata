@@ -26,8 +26,17 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
     <footer className="w-full mt-12 select-none font-['Noto_Sans_Bengali']">
       {/* Newsletter / Subscription Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8">
-        <div className="bg-[#FAF8F4] border border-[#E8E3D5] rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xs">
-          <div className="text-center md:text-left space-y-1">
+        <div className="relative bg-[#FAF8F4] border border-[#E8E3D5] rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xs overflow-hidden">
+          {/* Background Texture Overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-35 bg-repeat bg-[length:320px_auto]"
+            style={{
+              backgroundImage: 'url("/images/background.png")',
+              backgroundPosition: 'top left',
+            }}
+          />
+
+          <div className="relative z-10 text-center md:text-left space-y-1">
             <h3 className="text-lg sm:text-xl font-black text-[#1E1B13]">
               নতুন বই ও অফারের আপডেট পেতে যুক্ত থাকুন
             </h3>
@@ -36,7 +45,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
             </p>
           </div>
 
-          <form onSubmit={handleSubscribe} className="w-full md:w-auto flex-1 max-w-md flex items-center shadow-xs rounded-xl overflow-hidden border border-zinc-300 focus-within:border-[#E5A913] bg-white transition-all">
+          <form onSubmit={handleSubscribe} className="relative z-10 w-full md:w-auto flex-1 max-w-md flex items-center shadow-xs rounded-xl overflow-hidden border border-zinc-300 focus-within:border-[#E5A913] bg-white transition-all">
             <input
               type="text"
               required
@@ -62,9 +71,23 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
         </div>
       </div>
 
-      {/* Dark Main Footer Body */}
-      <div className="bg-[#18150C] text-zinc-300 border-t border-[#2A2417] pt-12 pb-14">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      {/* Dark Main Footer Body with Background Texture */}
+      <div className="relative bg-[#18150C] text-zinc-300 border-t border-[#2A2417] pt-12 pb-14 overflow-hidden">
+        {/* Signature Brand Texture Overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-20 bg-repeat bg-[length:320px_auto] mix-blend-screen"
+          style={{
+            backgroundImage: 'url("/images/background.png")',
+            backgroundPosition: 'top left',
+            filter: 'invert(1) sepia(1) hue-rotate(15deg) brightness(1.2)',
+          }}
+        />
+
+        {/* Ambient atmospheric glow */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#E5A913]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#E5A913]/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
             {/* Column 1: Brand Logo & Social */}
             <div className="space-y-4">

@@ -12,7 +12,7 @@ export const SECTIONS = [
   { id: 'special-curation', title: 'শেষের পাতার বিশেষ সংগ্রহ', subtitle: 'আমাদের সম্পাদকীয় দলের নির্বাচিত সেরা বই' },
 ];
 
-export const BOOKS: Book[] = [
+const RAW_BOOKS: Book[] = [
   // Bangla Bazar Books Library Featured Titles
   {
     id: 'bb-book-01',
@@ -1155,3 +1155,61 @@ export const BOOKS: Book[] = [
     sectionIds: ['mega-discount', 'special-curation']
   }
 ];
+
+const ENGLISH_TITLES_MAP: Record<string, string> = {
+  'নরওয়েজিয়ান উড': 'Norwegian Wood',
+  'মালিক': 'Maalik: The Syndicate',
+  'থাংলিয়ানা': 'Thangliana: Chronicles of the Hills',
+  'লালসন্ত্রাস : সিরাজ সিকদার ও সর্বহারা রাজনীতি': 'Red Terror: Siraj Sikdar & The Proletariat',
+  'রংধনু সাঁতার': 'Rainbow Swim',
+  'দৃষ্টিপাত': 'Drishtipat: A London Odyssey',
+  'অগ্নিবীণা': 'Agnibeena: The Fiery Lute',
+  'গীতাঞ্জলি': 'Gitanjali: Song Offerings',
+  'শেষের কবিতা': 'Shesher Kobita: The Last Poem',
+  'দেবদাস': 'Devdas',
+  'শ্রীকান্ত': 'Srikanta: The Wandering Soul',
+  'পল্লীসমাজ': 'Palli Samaj: Village Society',
+  'পথের পাঁচালী': 'Pather Panchali: Song of the Little Road',
+  'অপরাজিত': 'Aparajito: The Unvanquished',
+  'চাঁদের পাহাড়': 'Chander Pahar: Mountain of the Moon',
+  'ফেলুদা সমগ্র': 'Feluda: The Complete Omnibus',
+  'ব্যোমকেশ সমগ্র': 'Byomkesh Bakshi: The Complete Mysteries',
+  'মিসির আলি সমগ্র': 'Misir Ali: The Complete Inquiries',
+  'হিমু সমগ্র': 'Himu: The Complete Yellow Robe',
+  'শঙ্খনীল কারাগার': 'Shonkhonil Karagar: Conches in the Dark',
+  'নন্দিত নরকে': 'Nondito Noroke: In Blissful Hell',
+  'জোছনা ও জননীর গল্প': 'Jochhona O Jononir Golpo (1971 Liberation)',
+  'দীপু নাম্বার টু': 'Dipu Number Two',
+  'অ্যাটমিক হ্যাবিটস': 'Atomic Habits: Tiny Changes, Remarkable Results',
+  'দ্য সাবটল আর্ট': 'The Subtle Art of Not Giving a F*ck',
+  'দ্য আলকেমিস্ট': 'The Alchemist',
+  'হোমো সেপিয়েন্স': 'Sapiens: A Brief History of Humankind',
+  'দ্য সাইকোলজি অব মানি': 'The Psychology of Money',
+  'ইকিগাই': 'Ikigai: The Japanese Secret to Long Life',
+  'পারফিউম': 'Perfume: The Story of a Murderer',
+  'কাকাবাবু সমগ্র': 'Kakababu: The Complete Adventures',
+  'প্রফেসর শঙ্কু সমগ্র': 'Professor Shonku: The Complete Inventions',
+  'হাজার বছর ধরে': 'Hajar Bachhar Dhore: Through a Thousand Years',
+  'পদ্মা নদীর মাঝি': 'Boatman of the Padma River',
+  'সূর্য দীঘল বাড়ি': 'Surja Dighal Bari: The Ominous House',
+  'লালসালু': 'Tree Without Roots (Lalsalu)',
+  'মেঘ বলেছে যাব যাব': 'Megh Boleche Jabo Jabo',
+  'বাদশাহ নামদার': 'Badshah Namdar',
+  'দেবী': 'Devi: The Goddess',
+  'নিশীথিনী': 'Nishithini',
+  'আমার বন্ধু রাশেদ': 'Amar Bondhu Rashed (My Friend Rashed)',
+  'তুপু ও রূপার গল্প': 'Stories of Tupu and Rupa',
+  'মধ্যাহ্ন': 'Moddhyanho: The High Noon',
+  'মায়াবতী': 'Mayabati',
+  'তিথির নীল তোয়ালে': 'Tithir Neel Towale',
+};
+
+export const BOOKS: Book[] = RAW_BOOKS.map((b) => ({
+  ...b,
+  bangla_name: b.bangla_name || b.title,
+  english_name: b.english_name || ENGLISH_TITLES_MAP[b.title] || (b.language === 'English' ? b.title : `${b.title} (English Edition)`),
+  cover_image: b.cover_image || b.image,
+  old_price: b.old_price || b.originalPrice,
+  status: b.status || 'published',
+}));
+

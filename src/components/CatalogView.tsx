@@ -4,8 +4,8 @@ import React, { useState, useMemo } from 'react';
 import { Filter, X, ArrowUpDown, RotateCcw, BookOpen } from 'lucide-react';
 import { Book } from '../types';
 import { ProductCard } from './ProductCard';
-import { CATEGORIES } from '../data/categories';
 import { toBengaliNumber } from '../utils/formatters';
+import { useData } from '../context/DataContext';
 
 interface CatalogViewProps {
   books: Book[];
@@ -13,7 +13,7 @@ interface CatalogViewProps {
   initialSearch?: string;
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
-  onResetToHome: () => void;
+  onResetToHome?: () => void;
 }
 
 const PRICE_RANGES = [
@@ -41,6 +41,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   onQuickView,
   onResetToHome,
 }) => {
+  const { categories } = useData();
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
   const [selectedAuthor, setSelectedAuthor] = useState<string>('all');
   const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
@@ -311,7 +312,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 </span>
               </label>
 
-              {CATEGORIES.map((cat) => {
+              {categories.map((cat) => {
                 const isSelected = selectedCategory === cat.name;
                 return (
                   <label

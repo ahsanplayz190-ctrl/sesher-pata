@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { Book } from '../../../src/types';
 import { Header } from '../../../src/components/Header';
 import { Footer } from '../../../src/components/Footer';
+import { EnglishHeader } from '../../../src/components/english/EnglishHeader';
+import { EnglishFooter } from '../../../src/components/english/EnglishFooter';
 import { ProductDetailsModal } from '../../../src/components/ProductDetailsModal';
 import { CartDrawer } from '../../../src/components/CartDrawer';
 import { WishlistDrawer } from '../../../src/components/WishlistDrawer';
@@ -12,7 +14,9 @@ import { TrackOrderModal } from '../../../src/components/TrackOrderModal';
 import { AccountModal } from '../../../src/components/AccountModal';
 import { useCart } from '../../../src/context/CartContext';
 import { useToast } from '../../../src/context/ToastContext';
+import { useLanguage } from '../../../src/context/LanguageContext';
 import { useRouter } from 'next/navigation';
+import { trackSearch } from '../../../src/utils/metaPixel';
 
 interface BookDetailClientProps {
   book: Book;
@@ -23,27 +27,51 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const router = useRouter();
   const { showToast } = useToast();
   const { addToCart } = useCart();
+  const { language } = useLanguage();
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
   return (
-    <div className="min-h-screen text-zinc-900 flex flex-col">
-      <Header
-        currentNav="books"
-        onNavigate={(navId) => {
-          if (navId === 'home') {
+    <div className={`min-h-screen flex flex-col ${language === 'en' ? 'bg-[#12110e] text-zinc-100' : 'bg-[#FEFDF9] text-zinc-900'}`}>
+      {language === 'bn' ? (
+        <Header
+          currentNav="books"
+          onNavigate={(navId) => {
+            if (navId === 'home') {
+              router.push('/');
+            } else {
+              router.push('/' + (navId === 'books' ? '' : navId));
+            }
+          }}
+          onSearchSubmit={(query) => {
+            if (query?.trim()) trackSearch(query.trim());
             router.push('/');
-          } else {
-            router.push('/' + (navId === 'books' ? '' : navId));
-          }
-        }}
-        onSearchSubmit={() => router.push('/')}
-        onSelectBook={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
-        onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-        onOpenAccount={() => setIsAccountOpen(true)}
-      />
+          }}
+          onSelectBook={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
+          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+          onOpenAccount={() => setIsAccountOpen(true)}
+        />
+      ) : (
+        <EnglishHeader
+          currentNav="books"
+          onNavigate={(navId) => {
+            if (navId === 'home') {
+              router.push('/');
+            } else {
+              router.push('/' + (navId === 'books' ? '' : navId));
+            }
+          }}
+          onSearchSubmit={(query) => {
+            if (query?.trim()) trackSearch(query.trim());
+            router.push('/');
+          }}
+          onSelectBook={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
+          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+          onOpenAccount={() => setIsAccountOpen(true)}
+        />
+      )}
 
       <main className="flex-1 py-8">
         <ProductDetailsModal
@@ -58,10 +86,17 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
         />
       </main>
 
-      <Footer
-        onNavigate={() => router.push('/')}
-        onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-      />
+      {language === 'bn' ? (
+        <Footer
+          onNavigate={() => router.push('/')}
+          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+        />
+      ) : (
+        <EnglishFooter
+          onNavigate={() => router.push('/')}
+          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+        />
+      )}
 
       <CartDrawer
         onProceedToCheckout={() => setIsCheckoutOpen(true)}

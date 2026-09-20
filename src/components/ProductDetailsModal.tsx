@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Heart, ShoppingBag, Star, Share2, Check, ArrowRight, ShieldCheck, Truck, RefreshCw, BookOpen } from 'lucide-react';
 import { Book } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
+import { trackViewContent } from '../utils/metaPixel';
 
 interface ProductDetailsModalProps {
   book: Book;
@@ -27,12 +29,20 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { showToast } = useToast();
+  const { getBookDisplayName, language } = useLanguage();
 
   const [quantity, setQuantity] = useState(1);
-  const [activeImage, setActiveImage] = useState(book.image);
+  const [activeImage, setActiveImage] = useState(book.cover_image || book.image);
   const [activeTab, setActiveTab] = useState<'description' | 'reviews' | 'specifications'>('description');
 
   const isWished = isInWishlist(book.id);
+  const displayName = getBookDisplayName(book);
+
+  useEffect(() => {
+    if (book) {
+      trackViewContent(book);
+    }
+  }, [book?.id]);
 
   // Gallery images (fallback to main cover)
   const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.image];
@@ -127,7 +137,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
               {/* Title */}
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#18181B] leading-tight mb-1 font-['Noto_Sans_Bengali']">
-                {book.title}
+                {displayName}
               </h1>
 
               {/* Author & Publisher */}

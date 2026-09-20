@@ -94,6 +94,15 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="relative rounded-2xl sm:rounded-3xl bg-[#FEFDF9] border border-[#E9E4D6] shadow-sm overflow-hidden p-6 sm:p-9 md:p-11 min-h-[330px] sm:min-h-[380px] flex items-center">
+          {/* Background brand texture */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-30 bg-repeat bg-[length:320px_auto]"
+            style={{
+              backgroundImage: 'url("/images/background.png")',
+              backgroundPosition: 'top left',
+            }}
+          />
+
           {/* Subtle background decorative shapes */}
           <div className="absolute -top-24 -right-24 w-80 h-80 bg-[#E5A913]/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#E5A913]/5 rounded-full blur-3xl pointer-events-none" />
