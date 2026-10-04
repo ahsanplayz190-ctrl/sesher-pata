@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle, ShieldCheck, Truck, CreditCard, Banknote, Smartphone, ArrowRight, Printer, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, ShieldCheck, Truck, Banknote, ArrowRight, Printer, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
 import { OrderDetails } from '../types';
@@ -35,6 +35,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     deliveryOption,
     setDeliveryOption,
     deliveryFee,
+    insideDhakaFee,
+    outsideDhakaFee,
     grandTotal,
   } = useCart();
 
@@ -46,7 +48,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [district, setDistrict] = useState('ঢাকা');
   const [thana, setThana] = useState('');
   const [postalCode, setPostalCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash' | 'nagad' | 'card'>('cod');
+  const paymentMethod = 'cod';
   const [orderNotes, setOrderNotes] = useState('');
 
   // Order Complete State
@@ -141,7 +143,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 শেষের পাতা — নিরাপদ অর্ডার
               </h2>
               <span className="text-xs text-zinc-500">
-                ক্যাশ অন ডেলিভারি ও ডিজিটাল পেমেন্ট সুবিধা
+                ক্যাশ অন ডেলিভারি সুবিধা (বই হাতে পেয়ে মূল্য পরিশোধ)
               </span>
             </div>
           </div>
@@ -195,7 +197,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-between border-b border-zinc-200/80 pb-2">
                   <span className="text-zinc-500">পেমেন্ট মেথড:</span>
                   <span className="font-semibold text-zinc-900">
-                    {paymentMethod === 'cod' ? 'ক্যাশ অন ডেলিভারি (বই পেয়ে টাকা পরিশোধ)' : paymentMethod === 'bkash' ? 'বিকাশ' : paymentMethod === 'nagad' ? 'নগদ' : 'কার্ড পেমেন্ট'}
+                    ক্যাশ অন ডেলিভারি (বই পেয়ে টাকা পরিশোধ)
                   </span>
                 </div>
                 <div className="flex justify-between pt-1 text-sm font-bold text-zinc-950">
@@ -359,7 +361,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           }`}
                         >
                           <span>ঢাকা সিটির ভিতরে</span>
-                          <span className="text-zinc-500 font-semibold">৳৬০</span>
+                          <span className="text-zinc-500 font-semibold">{formatPrice(insideDhakaFee)}</span>
                         </label>
 
                         <label
@@ -371,7 +373,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           }`}
                         >
                           <span>ঢাকার বাইরে</span>
-                          <span className="text-zinc-500 font-semibold">৳১২০</span>
+                          <span className="text-zinc-500 font-semibold">{formatPrice(outsideDhakaFee)}</span>
                         </label>
                       </div>
                     </div>
@@ -382,82 +384,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="md:col-span-5 space-y-4">
                   {/* Payment Options */}
                   <h3 className="text-sm font-bold text-zinc-900 border-b border-zinc-100 pb-2 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-amber-600" />
-                    <span>পেমেন্ট পদ্ধতি নির্বাচন</span>
+                    <Banknote className="w-4 h-4 text-emerald-600" />
+                    <span>পেমেন্ট পদ্ধতি</span>
                   </h3>
 
-                  <div className="space-y-2 text-xs">
-                    <label
-                      onClick={() => setPaymentMethod('cod')}
-                      className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
-                        paymentMethod === 'cod'
-                          ? 'border-amber-500 bg-amber-50/60 font-bold text-zinc-900 shadow-xs'
-                          : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                        <Banknote className="w-4 h-4" />
+                  <div className="text-xs">
+                    <div className="p-3.5 rounded-2xl border-2 border-amber-500 bg-amber-50/70 text-zinc-900 shadow-xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <Banknote className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <div>
-                        <span className="block font-bold">ক্যাশ অন ডেলিভারি (COD)</span>
-                        <span className="text-[11px] text-zinc-500 font-normal">বই হাতে পেয়ে মূল্য পরিশোধ করুন</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-zinc-900 text-xs sm:text-sm">ক্যাশ অন ডেলিভারি (COD)</span>
+                          <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full shrink-0">
+                            প্রযোজ্য
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-zinc-600 block mt-0.5">
+                          বই হাতে পেয়ে দেখে মূল্য পরিশোধ করুন
+                        </span>
                       </div>
-                    </label>
-
-                    <label
-                      onClick={() => setPaymentMethod('bkash')}
-                      className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
-                        paymentMethod === 'bkash'
-                          ? 'border-[#E2136E] bg-rose-50/50 font-bold text-zinc-900 shadow-xs'
-                          : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
-                        <img
-                          src="/images/images.png"
-                          alt="bKash"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <div>
-                        <span className="block font-bold">bKash (বিকাশ পেমেন্ট)</span>
-                        <span className="text-[11px] text-zinc-500 font-normal">বিকাশ গেটওয়ে দিয়ে নিরাপদ ও দ্রুত পেমেন্ট</span>
-                      </div>
-                    </label>
-
-                    <label
-                      onClick={() => setPaymentMethod('nagad')}
-                      className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
-                        paymentMethod === 'nagad'
-                          ? 'border-orange-500 bg-orange-50/50 font-bold text-zinc-900 shadow-xs'
-                          : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0 font-black text-xs">
-                        নগদ
-                      </div>
-                      <div>
-                        <span className="block font-bold">Nagad (নগদ পেমেন্ট)</span>
-                        <span className="text-[11px] text-zinc-500 font-normal">নগদ অ্যাকাউন্ট থেকে দ্রুত পেমেন্ট</span>
-                      </div>
-                    </label>
-
-                    <label
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
-                        paymentMethod === 'card'
-                          ? 'border-blue-500 bg-blue-50/50 font-bold text-zinc-900 shadow-xs'
-                          : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                        <CreditCard className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="block font-bold">ভিসা / মাস্টারকার্ড</span>
-                        <span className="text-[11px] text-zinc-500 font-normal">যে কোনো ডেবিট বা ক্রেডিট কার্ড</span>
-                      </div>
-                    </label>
+                    </div>
                   </div>
 
                   {/* Order Financials Summary */}

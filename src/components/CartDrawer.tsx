@@ -27,6 +27,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     deliveryOption,
     setDeliveryOption,
     deliveryFee,
+    insideDhakaFee,
+    outsideDhakaFee,
     grandTotal,
     totalItemsCount,
     isCartOpen,
@@ -157,8 +159,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.book.id, item.quantity + 1)}
-                            className="p-1 hover:bg-zinc-100 text-zinc-600 rounded-r cursor-pointer"
+                            disabled={item.book.stock !== undefined && item.quantity >= item.book.stock}
+                            className="p-1 hover:bg-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-600 rounded-r cursor-pointer"
                             aria-label="বাড়ান"
+                            title={item.book.stock !== undefined && item.quantity >= item.book.stock ? 'সর্বোচ্চ স্টক সংখ্যায় পৌঁছে গেছে' : '১ বাড়ান'}
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -192,7 +196,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       }`}
                     >
                       <span>ঢাকা শহরের ভিতরে</span>
-                      <span className="text-[11px] text-zinc-500 font-semibold">৳৬০ (২-৩ দিন)</span>
+                      <span className="text-[11px] text-zinc-500 font-semibold">{formatPrice(insideDhakaFee)} (২-৩ দিন)</span>
                     </label>
 
                     <label
@@ -204,7 +208,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       }`}
                     >
                       <span>ঢাকার বাইরে</span>
-                      <span className="text-[11px] text-zinc-500 font-semibold">৳১২০ (৩-৫ দিন)</span>
+                      <span className="text-[11px] text-zinc-500 font-semibold">{formatPrice(outsideDhakaFee)} (৩-৫ দিন)</span>
                     </label>
                   </div>
                 </div>

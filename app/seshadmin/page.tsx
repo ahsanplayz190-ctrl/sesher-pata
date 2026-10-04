@@ -34,14 +34,26 @@ import {
   Download,
   RotateCcw,
   Sparkles,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  Tag,
+  Truck,
+  Send,
+  RefreshCw,
+  CheckCircle2,
+  Calendar,
 } from 'lucide-react';
 import { useData } from '../../src/context/DataContext';
 import { Book, Banner, Category, Author, Publisher, OrderDetails } from '../../src/types';
 import { formatPrice, toBengaliNumber } from '../../src/utils/formatters';
+import { bookService } from '../../src/services/bookService';
 
-export default function AdminPage() {
+function AdminDashboardContent() {
   const {
     books,
+    isBooksLoading,
     banners,
     categories,
     authors,
@@ -50,6 +62,7 @@ export default function AdminPage() {
     addBook,
     updateBook,
     deleteBook,
+    syncBooksWithSupabase,
     addBanner,
     updateBanner,
     deleteBanner,
@@ -62,6 +75,7 @@ export default function AdminPage() {
     addPublisher,
     updatePublisher,
     deletePublisher,
+    updateOrder,
     updateOrderStatus,
     deleteOrder,
     siteSettings,
@@ -73,6 +87,7 @@ export default function AdminPage() {
 
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isClientMounted, setIsClientMounted] = useState<boolean>(false);
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -81,15 +96,16 @@ export default function AdminPage() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'books' | 'banners' | 'categories' | 'publishers' | 'authors' | 'orders' | 'settings'
+    'dashboard' | 'books' | 'banners' | 'categories' | 'publishers' | 'authors' | 'orders' | 'settings' | 'store_settings' | 'steadfast'
   >('dashboard');
 
   // Book Management States
   const [bookSearch, setBookSearch] = useState('');
   const [bookCategoryFilter, setBookCategoryFilter] = useState('all');
-  const [bookStockFilter, setBookStockFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [bookStockFilter, setBookStockFilter] = useState<'all' | 'in' | 'low' | 'out'>('all');
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [isSavingBook, setIsSavingBook] = useState(false);
 
   // Book Form State
   const [bookForm, setBookForm] = useState<{
@@ -201,6 +217,7 @@ export default function AdminPage() {
 
   // Order Filter & View State
   const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+  const [orderDateFilter, setOrderDateFilter] = useState<'all' | 'today'>('all');
   const [orderSearch, setOrderSearch] = useState('');
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<OrderDetails | null>(null);
 
@@ -222,9 +239,13 @@ export default function AdminPage() {
 
   // Check auth session with server-side verified token
   useEffect(() => {
+    setIsClientMounted(true);
     let isMounted = true;
     fetch('/api/admin/auth')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
         if (isMounted && data?.authenticated) {
           setIsAuthenticated(true);
@@ -295,10 +316,11 @@ export default function AdminPage() {
     }));
   };
 
-  // Handle Image File Upload -> Base64
-  const handleFileUpload = (
+  // Handle Image File Upload -> Supabase Storage (with fallback to Base64)
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (url: string) => void
+    setter: (url: string) => void,
+    bucket = 'book-covers'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -308,19 +330,27 @@ export default function AdminPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const result = loadEvt.target?.result as string;
-      if (result) {
-        setter(result);
-        showNotice('ছবি সফলভাবে আপলোড হয়েছে!');
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      showNotice('ছবি Supabase স্টোরেজে আপলোড হচ্ছে...');
+      const uploadedUrl = await bookService.uploadImage(file, bucket);
+      setter(uploadedUrl);
+      showNotice('ছবি সফলভাবে স্টোরেজে আপলোড হয়েছে!');
+    } catch (uploadErr: any) {
+      console.warn('[Admin Upload] Supabase Storage upload failed, falling back to local base64:', uploadErr.message);
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const result = loadEvt.target?.result as string;
+        if (result) {
+          setter(result);
+          showNotice('ছবি সফলভাবে যুক্ত হয়েছে!');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Save Book (Create or Edit)
-  const handleSaveBook = (e: React.FormEvent) => {
+  const handleSaveBook = async (e: React.FormEvent) => {
     e.preventDefault();
     const banglaName = (bookForm.bangla_name || bookForm.title || '').trim();
     const englishName = (bookForm.english_name || '').trim();
@@ -336,66 +366,75 @@ export default function AdminPage() {
       .map((t) => t.trim())
       .filter(Boolean);
 
-    if (editingBookId) {
-      // Edit existing
-      updateBook(editingBookId, {
-        title,
-        bangla_name: banglaName,
-        english_name: englishName,
-        author: bookForm.author.trim(),
-        publisher: bookForm.publisher.trim() || 'বাতিঘর',
-        category: bookForm.category.trim() || 'উপন্যাস',
-        price: Number(bookForm.price),
-        originalPrice: Number(bookForm.originalPrice),
-        discount: Number(bookForm.discount),
-        stock: Number(bookForm.stock),
-        isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
-        pages: Number(bookForm.pages),
-        edition: bookForm.edition.trim(),
-        language: bookForm.language.trim(),
-        description: bookForm.description.trim(),
-        image: bookForm.image.trim(),
-        tags: tagsArray,
-        isBestseller: bookForm.isBestseller,
-        isNew: bookForm.isNew,
-        isFeatured: bookForm.isFeatured,
-        isInternational: bookForm.isInternational,
-        sectionIds: bookForm.sectionIds,
-      });
-      showNotice(`"${title}" সফলভাবে আপডেট করা হয়েছে!`);
-    } else {
-      // Add new
-      addBook({
-        title,
-        bangla_name: banglaName,
-        english_name: englishName,
-        author: bookForm.author.trim(),
-        publisher: bookForm.publisher.trim() || 'বাতিঘর',
-        category: bookForm.category.trim() || 'উপন্যাস',
-        price: Number(bookForm.price),
-        originalPrice: Number(bookForm.originalPrice),
-        discount: Number(bookForm.discount),
-        stock: Number(bookForm.stock),
-        isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
-        pages: Number(bookForm.pages),
-        edition: bookForm.edition.trim(),
-        language: bookForm.language.trim(),
-        description: bookForm.description.trim(),
-        image: bookForm.image.trim(),
-        tags: tagsArray,
-        rating: 4.8,
-        reviewCount: 1,
-        isBestseller: bookForm.isBestseller,
-        isNew: bookForm.isNew,
-        isFeatured: bookForm.isFeatured,
-        isInternational: bookForm.isInternational,
-        sectionIds: bookForm.sectionIds,
-      });
-      showNotice(`"${title}" নতুন বই হিসেবে যুক্ত করা হয়েছে!`);
-    }
+    try {
+      setIsSavingBook(true);
+      showNotice(editingBookId ? `"${title}" সেন্ট্রাল ডাটাবেজে আপডেট হচ্ছে...` : `"${title}" সেন্ট্রাল ডাটাবেজে সংরক্ষিত হচ্ছে...`);
 
-    setIsBookModalOpen(false);
-    setEditingBookId(null);
+      if (editingBookId) {
+        // Edit existing
+        await updateBook(editingBookId, {
+          title,
+          bangla_name: banglaName,
+          english_name: englishName,
+          author: bookForm.author.trim(),
+          publisher: bookForm.publisher.trim() || 'বাতিঘর',
+          category: bookForm.category.trim() || 'উপন্যাস',
+          price: Number(bookForm.price),
+          originalPrice: Number(bookForm.originalPrice),
+          discount: Number(bookForm.discount),
+          stock: Number(bookForm.stock),
+          isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
+          pages: Number(bookForm.pages),
+          edition: bookForm.edition.trim(),
+          language: bookForm.language.trim(),
+          description: bookForm.description.trim(),
+          image: bookForm.image.trim(),
+          tags: tagsArray,
+          isBestseller: bookForm.isBestseller,
+          isNew: bookForm.isNew,
+          isFeatured: bookForm.isFeatured,
+          isInternational: bookForm.isInternational,
+          sectionIds: bookForm.sectionIds,
+        });
+        showNotice(`"${title}" সফলভাবে আপডেট করা হয়েছে এবং সব ব্যবহারকারীর জন্য লাইভ হয়েছে!`);
+      } else {
+        // Add new
+        await addBook({
+          title,
+          bangla_name: banglaName,
+          english_name: englishName,
+          author: bookForm.author.trim(),
+          publisher: bookForm.publisher.trim() || 'বাতিঘর',
+          category: bookForm.category.trim() || 'উপন্যাস',
+          price: Number(bookForm.price),
+          originalPrice: Number(bookForm.originalPrice),
+          discount: Number(bookForm.discount),
+          stock: Number(bookForm.stock),
+          isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
+          pages: Number(bookForm.pages),
+          edition: bookForm.edition.trim(),
+          language: bookForm.language.trim(),
+          description: bookForm.description.trim(),
+          image: bookForm.image.trim(),
+          tags: tagsArray,
+          rating: 4.8,
+          reviewCount: 1,
+          isBestseller: bookForm.isBestseller,
+          isNew: bookForm.isNew,
+          isFeatured: bookForm.isFeatured,
+          isInternational: bookForm.isInternational,
+          sectionIds: bookForm.sectionIds,
+        });
+        showNotice(`"${title}" সফলভাবে যুক্ত হয়েছে এবং সব ব্যবহারকারীর জন্য লাইভ হয়েছে!`);
+      }
+
+      setIsBookModalOpen(false);
+      setEditingBookId(null);
+    } catch (err: any) {
+      showNotice(err.message || 'বই সংরক্ষণ করতে সমস্যা দেখা দিয়েছে!', 'error');
+    } finally {
+      setIsSavingBook(false);
+    }
   };
 
   // Open Edit Book Modal
@@ -635,50 +674,128 @@ export default function AdminPage() {
     setEditingAuthId(null);
   };
 
+  const safeBooks = Array.isArray(books) ? books : [];
+  const safeOrders = Array.isArray(orders) ? orders : [];
+
   // Filtered Books List
   const filteredBooks = useMemo(() => {
-    return books.filter((b) => {
+    return safeBooks.filter((b) => {
+      if (!b) return false;
+      const search = (bookSearch || '').toLowerCase().trim();
       const matchSearch =
-        !bookSearch ||
-        b.title.toLowerCase().includes(bookSearch.toLowerCase()) ||
-        b.author.toLowerCase().includes(bookSearch.toLowerCase()) ||
-        b.publisher?.toLowerCase().includes(bookSearch.toLowerCase()) ||
-        b.isbn?.toLowerCase().includes(bookSearch.toLowerCase());
+        !search ||
+        (b.title && String(b.title).toLowerCase().includes(search)) ||
+        (b.bangla_name && String(b.bangla_name).toLowerCase().includes(search)) ||
+        (b.english_name && String(b.english_name).toLowerCase().includes(search)) ||
+        (b.author && String(b.author).toLowerCase().includes(search)) ||
+        (b.publisher && String(b.publisher).toLowerCase().includes(search)) ||
+        (b.isbn && String(b.isbn).toLowerCase().includes(search));
 
       const matchCategory =
         bookCategoryFilter === 'all' || b.category === bookCategoryFilter;
 
+      const stock = typeof b.stock === 'number' ? b.stock : 0;
       const matchStock =
         bookStockFilter === 'all' ||
-        (bookStockFilter === 'low' && b.stock > 0 && b.stock <= 5) ||
-        (bookStockFilter === 'out' && b.stock === 0);
+        (bookStockFilter === 'in' && stock > 0) ||
+        (bookStockFilter === 'low' && stock > 0 && stock <= 5) ||
+        (bookStockFilter === 'out' && stock === 0);
 
-      return matchSearch && matchCategory && matchStock;
+      return Boolean(matchSearch && matchCategory && matchStock);
     });
-  }, [books, bookSearch, bookCategoryFilter, bookStockFilter]);
+  }, [safeBooks, bookSearch, bookCategoryFilter, bookStockFilter]);
+
+  // Helper to check if an order was placed today
+  const isTodayOrder = (orderDate: string) => {
+    if (!orderDate) return false;
+    try {
+      const now = new Date();
+      const str = String(orderDate).trim();
+      if (!str) return false;
+
+      const toEnglishDigits = (val: string) => {
+        const bengaliToEnglish: Record<string, string> = {
+          '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+          '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9',
+        };
+        return val.replace(/[০-৯]/g, (d) => bengaliToEnglish[d] || d);
+      };
+
+      const isoYear = now.getFullYear();
+      const isoMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const isoDay = String(now.getDate()).padStart(2, '0');
+      const iso = `${isoYear}-${isoMonth}-${isoDay}`;
+      const isoBengali = toBengaliNumber(iso);
+
+      if (str.includes(iso) || str.includes(isoBengali)) {
+        return true;
+      }
+
+      const normalized = toEnglishDigits(str);
+      const targetYear = now.getFullYear();
+      const targetMonth = now.getMonth() + 1;
+      const targetDay = now.getDate();
+      const numbers = normalized.match(/\d+/g);
+      if (numbers && numbers.length >= 3) {
+        const n0 = parseInt(numbers[0], 10);
+        const n1 = parseInt(numbers[1], 10);
+        const n2 = parseInt(numbers[2], 10);
+        if (n0 === targetYear && n1 === targetMonth && n2 === targetDay) return true;
+        if (n0 === targetDay && n1 === targetMonth && n2 === targetYear) return true;
+        if (n0 === targetMonth && n1 === targetDay && n2 === targetYear) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // Today's Orders list
+  const todayOrders = useMemo(() => {
+    return safeOrders.filter((ord) => ord && isTodayOrder(ord.date));
+  }, [safeOrders]);
+
+  // Today's Revenue (Non-cancelled orders)
+  const todayRevenue = useMemo(() => {
+    return todayOrders.reduce(
+      (sum, ord) => sum + (ord && ord.status !== 'cancelled' ? (Number(ord.total) || 0) : 0),
+      0
+    );
+  }, [todayOrders]);
+
+  // Today's Delivered or Shipped Orders
+  const todayDeliveredOrders = useMemo(() => {
+    return todayOrders.filter(
+      (ord) => ord && (ord.status === 'delivered' || ord.status === 'shipped')
+    );
+  }, [todayOrders]);
 
   // Filtered Orders List
   const filteredOrders = useMemo(() => {
-    return orders.filter((ord) => {
+    return safeOrders.filter((ord) => {
+      if (!ord) return false;
       const matchStatus =
         orderStatusFilter === 'all' || ord.status === orderStatusFilter;
+      const matchDate =
+        orderDateFilter === 'all' || isTodayOrder(ord.date);
+      const query = (orderSearch || '').toLowerCase().trim();
       const matchQuery =
-        !orderSearch ||
-        ord.orderId.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        ord.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        ord.phone.includes(orderSearch);
-      return matchStatus && matchQuery;
+        !query ||
+        (ord.orderId && String(ord.orderId).toLowerCase().includes(query)) ||
+        (ord.customerName && String(ord.customerName).toLowerCase().includes(query)) ||
+        (ord.phone && String(ord.phone).includes(query));
+      return Boolean(matchStatus && matchDate && matchQuery);
     });
-  }, [orders, orderStatusFilter, orderSearch]);
+  }, [safeOrders, orderStatusFilter, orderDateFilter, orderSearch]);
 
   // Calculated Stats
   const totalRevenue = useMemo(() => {
-    return orders.reduce((sum, ord) => sum + (ord.status !== 'cancelled' ? ord.total : 0), 0);
-  }, [orders]);
+    return safeOrders.reduce((sum, ord) => sum + (ord && ord.status !== 'cancelled' ? (Number(ord.total) || 0) : 0), 0);
+  }, [safeOrders]);
 
   const lowStockBooks = useMemo(() => {
-    return books.filter((b) => b.stock <= 5);
-  }, [books]);
+    return safeBooks.filter((b) => b && (Number(b.stock) || 0) <= 5);
+  }, [safeBooks]);
 
   // Handle Export JSON
   const handleExport = () => {
@@ -770,6 +887,307 @@ export default function AdminPage() {
       setIsPixelSaving(false);
     }
   };
+
+  // -------------------------------------------------------------
+  // STORE & CONTACT SETTINGS MANAGEMENT
+  // -------------------------------------------------------------
+  const [contactForm, setContactForm] = useState({
+    phone: siteSettings?.phone || '০১৭০০-০০০০০০',
+    alt_phone: siteSettings?.alt_phone || '০১৯০০-০০০০০০',
+    email: siteSettings?.email || 'support@shesherpata.com',
+    address: siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+    support_hours: siteSettings?.support_hours || 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
+    announcement_badge: siteSettings?.announcement_badge || 'অফার',
+    announcement_text: siteSettings?.announcement_text || 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
+    about_text: siteSettings?.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
+    facebook_url: siteSettings?.facebook_url || 'https://facebook.com',
+    instagram_url: siteSettings?.instagram_url || 'https://instagram.com',
+    whatsapp_number: siteSettings?.whatsapp_number || '',
+    delivery_charge_inside: siteSettings?.delivery_charge_inside ?? 60,
+    delivery_charge_outside: siteSettings?.delivery_charge_outside ?? 120,
+    free_delivery_threshold: siteSettings?.free_delivery_threshold ?? 1500,
+  });
+  const [isContactSaving, setIsContactSaving] = useState(false);
+
+  useEffect(() => {
+    if (siteSettings) {
+      setContactForm({
+        phone: siteSettings.phone || '০১৭০০-০০০০০০',
+        alt_phone: siteSettings.alt_phone || '০১৯০০-০০০০০০',
+        email: siteSettings.email || 'support@shesherpata.com',
+        address: siteSettings.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+        support_hours: siteSettings.support_hours || 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
+        announcement_badge: siteSettings.announcement_badge || 'অফার',
+        announcement_text: siteSettings.announcement_text || 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
+        about_text: siteSettings.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
+        facebook_url: siteSettings.facebook_url || 'https://facebook.com',
+        instagram_url: siteSettings.instagram_url || 'https://instagram.com',
+        whatsapp_number: siteSettings.whatsapp_number || '',
+        delivery_charge_inside: siteSettings.delivery_charge_inside ?? 60,
+        delivery_charge_outside: siteSettings.delivery_charge_outside ?? 120,
+        free_delivery_threshold: siteSettings.free_delivery_threshold ?? 1500,
+      });
+    }
+  }, [siteSettings]);
+
+  const handleSaveContactSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsContactSaving(true);
+    try {
+      await updateSiteSettings({
+        phone: contactForm.phone.trim(),
+        alt_phone: contactForm.alt_phone.trim(),
+        email: contactForm.email.trim(),
+        address: contactForm.address.trim(),
+        support_hours: contactForm.support_hours.trim(),
+        announcement_badge: contactForm.announcement_badge.trim(),
+        announcement_text: contactForm.announcement_text.trim(),
+        about_text: contactForm.about_text.trim(),
+        facebook_url: contactForm.facebook_url.trim(),
+        instagram_url: contactForm.instagram_url.trim(),
+        whatsapp_number: contactForm.whatsapp_number.trim(),
+        delivery_charge_inside: Number(contactForm.delivery_charge_inside) || 0,
+        delivery_charge_outside: Number(contactForm.delivery_charge_outside) || 0,
+        free_delivery_threshold: Number(contactForm.free_delivery_threshold) || 0,
+      });
+      showNotice('যোগাযোগের ঠিকানা ও স্টোর সেটিংস সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err: any) {
+      showNotice(err?.message || 'সেটিংস সংরক্ষণে সমস্যা হয়েছে!', 'error');
+    } finally {
+      setIsContactSaving(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // STEADFAST COURIER INTEGRATION STATE & HANDLERS
+  // -------------------------------------------------------------
+  const [steadfastApiKey, setSteadfastApiKey] = useState('');
+  const [steadfastSecretKey, setSteadfastSecretKey] = useState('');
+  const [isSteadfastConnected, setIsSteadfastConnected] = useState(false);
+  const [steadfastLastVerifiedAt, setSteadfastLastVerifiedAt] = useState<string | null>(null);
+  const [showSteadfastSecret, setShowSteadfastSecret] = useState(false);
+  const [isSteadfastConnecting, setIsSteadfastConnecting] = useState(false);
+  const [isSteadfastDisconnecting, setIsSteadfastDisconnecting] = useState(false);
+  const [steadfastBalance, setSteadfastBalance] = useState<number | null>(null);
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false);
+
+  // Dispatch to Steadfast Modal State
+  const [isSteadfastDispatchModalOpen, setIsSteadfastDispatchModalOpen] = useState(false);
+  const [selectedOrderForSteadfast, setSelectedOrderForSteadfast] = useState<OrderDetails | null>(null);
+  const [dispatchForm, setDispatchForm] = useState({
+    invoice: '',
+    recipient_name: '',
+    recipient_phone: '',
+    recipient_address: '',
+    cod_amount: 0,
+    note: '',
+  });
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [trackingLoadingOrderId, setTrackingLoadingOrderId] = useState<string | null>(null);
+
+  // Fetch Steadfast Status from server
+  const fetchSteadfastStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/steadfast?action=status');
+      if (res.ok) {
+        const data = await res.json();
+        setIsSteadfastConnected(Boolean(data.connected));
+        setSteadfastLastVerifiedAt(data.last_verified_at || null);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'steadfast') {
+      fetchSteadfastStatus();
+    }
+  }, [activeTab]);
+
+  const handleConnectSteadfast = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!steadfastApiKey.trim() || !steadfastSecretKey.trim()) {
+      showNotice('অনুগ্রহ করে API Key এবং Secret Key প্রদান করুন!', 'error');
+      return;
+    }
+    setIsSteadfastConnecting(true);
+    try {
+      const res = await fetch('/api/admin/steadfast/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: steadfastApiKey.trim(),
+          secretKey: steadfastSecretKey.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsSteadfastConnected(true);
+        setSteadfastLastVerifiedAt(new Date().toISOString());
+        if (typeof data.balance === 'number') {
+          setSteadfastBalance(data.balance);
+        }
+        setSteadfastApiKey('');
+        setSteadfastSecretKey('');
+        showNotice(data.message || 'স্টেডফাস্ট সফলভাবে কানেক্ট হয়েছে!');
+      } else {
+        showNotice(data.error || 'স্টেডফাস্ট ক্রিডেনশিয়ালস যাচাই ব্যর্থ হয়েছে!', 'error');
+      }
+    } catch {
+      showNotice('সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি!', 'error');
+    } finally {
+      setIsSteadfastConnecting(false);
+    }
+  };
+
+  const handleDisconnectSteadfast = async () => {
+    if (!confirm('আপনি কি নিশ্চিত যে স্টেডফাস্ট অ্যাকাউন্ট ডিসকানেক্ট করতে চান?')) return;
+    setIsSteadfastDisconnecting(true);
+    try {
+      const res = await fetch('/api/admin/steadfast/disconnect', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsSteadfastConnected(false);
+        setSteadfastLastVerifiedAt(null);
+        setSteadfastBalance(null);
+        showNotice('স্টেডফাস্ট সফলভাবে ডিসকানেক্ট করা হয়েছে!');
+      } else {
+        showNotice(data.error || 'ডিসকানেক্ট করতে সমস্যা হয়েছে!', 'error');
+      }
+    } catch {
+      showNotice('সার্ভার ত্রুটি!', 'error');
+    } finally {
+      setIsSteadfastDisconnecting(false);
+    }
+  };
+
+  const handleCheckSteadfastBalance = async () => {
+    setIsCheckingBalance(true);
+    try {
+      const res = await fetch('/api/admin/steadfast?action=balance');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSteadfastBalance(data.balance);
+        showNotice(`স্টেডফাস্ট সফলভাবে কানেক্ট হয়েছে! বর্তমান ব্যালেন্স: ${formatPrice(data.balance)}`);
+      } else {
+        showNotice(data.error || 'স্টেডফাস্ট সার্ভার রেসপন্স দেয়নি!', 'error');
+      }
+    } catch {
+      showNotice('স্টেডফাস্ট সার্ভারে সংযোগ সম্ভব হয়নি!', 'error');
+    } finally {
+      setIsCheckingBalance(false);
+    }
+  };
+
+  const handleOpenSteadfastModal = (ord: OrderDetails) => {
+    if (!isSteadfastConnected) {
+      showNotice('স্টেডফাস্টে অর্ডার পাঠানোর আগে সেটিংস থেকে অ্যাকাউন্ট কানেক্ট করুন!', 'error');
+      setActiveTab('steadfast');
+      return;
+    }
+    const fullAddress = [ord.address, ord.thana, ord.district].filter(Boolean).join(', ');
+    setSelectedOrderForSteadfast(ord);
+    setDispatchForm({
+      invoice: ord.orderId,
+      recipient_name: ord.customerName,
+      recipient_phone: ord.phone,
+      recipient_address: fullAddress,
+      cod_amount: ord.paymentMethod === 'cod' ? ord.total : 0,
+      note: ord.orderNotes || `বই: ${(ord.items || []).map((i) => i.book?.title || 'বই').slice(0, 2).join(', ')}`,
+    });
+    setIsSteadfastDispatchModalOpen(true);
+  };
+
+  const handleConfirmSteadfastDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderForSteadfast) return;
+    setIsDispatching(true);
+    try {
+      const res = await fetch('/api/admin/steadfast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice: dispatchForm.invoice,
+          recipient_name: dispatchForm.recipient_name,
+          recipient_phone: dispatchForm.recipient_phone,
+          recipient_address: dispatchForm.recipient_address,
+          cod_amount: Number(dispatchForm.cod_amount) || 0,
+          note: dispatchForm.note,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.consignment) {
+        const c = data.consignment;
+        updateOrder(selectedOrderForSteadfast.orderId, {
+          status: 'shipped',
+          steadfast_consignment_id: c.consignment_id,
+          steadfast_tracking_code: c.tracking_code,
+          steadfast_status: c.status || 'in_review',
+          steadfast_synced_at: new Date().toISOString(),
+        });
+        setIsSteadfastDispatchModalOpen(false);
+        setSelectedOrderForSteadfast(null);
+        showNotice(`অর্ডার #${selectedOrderForSteadfast.orderId} সফলভাবে স্টেডফাস্টে বুক করা হয়েছে! ট্র্যাকিং কোড: ${c.tracking_code}`);
+      } else {
+        showNotice(data.error || 'স্টেডফাস্টে পার্সেল বুক করতে সমস্যা হয়েছে!', 'error');
+      }
+    } catch (err: any) {
+      showNotice('সার্ভার ত্রুটি: ' + (err?.message || ''), 'error');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
+
+  const handleTrackSteadfastOrder = async (ord: OrderDetails) => {
+    const code = ord.steadfast_tracking_code || ord.steadfast_consignment_id || ord.orderId;
+    if (!code) {
+      showNotice('ট্র্যাকিং কোড পাওয়া যায়নি!', 'error');
+      return;
+    }
+    setTrackingLoadingOrderId(ord.orderId);
+    try {
+      const res = await fetch(`/api/admin/steadfast?action=track&tracking_code=${encodeURIComponent(String(code))}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const deliveryStatus = data.delivery_status;
+        let newOrderStatus = ord.status;
+        if (deliveryStatus === 'delivered') {
+          newOrderStatus = 'delivered';
+        } else if (deliveryStatus === 'cancelled') {
+          newOrderStatus = 'cancelled';
+        }
+        updateOrder(ord.orderId, {
+          steadfast_status: deliveryStatus,
+          status: newOrderStatus,
+          steadfast_synced_at: new Date().toISOString(),
+        });
+        showNotice(`অর্ডার ${ord.orderId} বর্তমান কুরিয়ার স্থিতি: "${deliveryStatus}"`);
+      } else {
+        showNotice(data.error || 'ট্র্যাকিং আপডেট করা সম্ভব হয়নি!', 'error');
+      }
+    } catch {
+      showNotice('ট্র্যাকিং সার্ভারে সংযোগ সম্ভব হয়নি!', 'error');
+    } finally {
+      setTrackingLoadingOrderId(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // MOUNT GUARD: Prevents hydration mismatch between SSR & Client
+  // -------------------------------------------------------------
+  if (!isClientMounted) {
+    return (
+      <div className="min-h-screen bg-[#12110D] text-white flex flex-col justify-center items-center p-4">
+        <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-xs text-zinc-400 font-['Noto_Sans_Bengali']">
+          অ্যাডমিন পোর্টাল লোড হচ্ছে...
+        </p>
+      </div>
+    );
+  }
 
   // -------------------------------------------------------------
   // LOGIN SCREEN (if not authenticated)
@@ -1068,7 +1486,41 @@ export default function AdminPage() {
               </span>
             </button>
 
-            <div className="pt-2 border-t border-zinc-100">
+            <button
+              onClick={() => setActiveTab('steadfast')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === 'steadfast'
+                  ? 'bg-amber-500 text-zinc-950 shadow-xs'
+                  : 'text-zinc-700 hover:bg-zinc-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 text-emerald-600" />
+                <span>স্টেডফাস্ট কুরিয়ার</span>
+              </div>
+              {siteSettings?.steadfast_enabled ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="কানেক্টেড" />
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-bold">API</span>
+              )}
+            </button>
+
+            <div className="pt-2 border-t border-zinc-100 space-y-1.5">
+              <button
+                onClick={() => setActiveTab('store_settings')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === 'store_settings'
+                    ? 'bg-amber-500 text-zinc-950 shadow-xs'
+                    : 'text-zinc-700 hover:bg-zinc-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <MapPin className="w-4 h-4" />
+                  <span>যোগাযোগ ও সাইট তথ্য</span>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
+
               <button
                 onClick={() => setActiveTab('settings')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
@@ -1101,7 +1553,10 @@ export default function AdminPage() {
                   <div className="text-xl sm:text-2xl font-black text-zinc-900">
                     {formatPrice(totalRevenue)}
                   </div>
-                  <p className="text-[11px] text-zinc-400 mt-1">সফল ও প্রক্রিয়াধীন অর্ডার থেকে</p>
+                  <div className="flex items-center justify-between text-[11px] mt-2 pt-2 border-t border-zinc-100">
+                    <span className="text-zinc-500 font-medium">আজকের বিক্রি:</span>
+                    <span className="font-bold text-emerald-700">{formatPrice(todayRevenue)}</span>
+                  </div>
                 </div>
 
                 <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs">
@@ -1112,7 +1567,19 @@ export default function AdminPage() {
                   <div className="text-xl sm:text-2xl font-black text-zinc-900">
                     {toBengaliNumber(orders.length)} টি
                   </div>
-                  <p className="text-[11px] text-zinc-400 mt-1">গ্রাহকদের প্রাপ্ত অর্ডারসমূহ</p>
+                  <div
+                    onClick={() => {
+                      setActiveTab('orders');
+                      setOrderDateFilter('today');
+                    }}
+                    className="flex items-center justify-between text-[11px] mt-2 pt-2 border-t border-zinc-100 cursor-pointer group"
+                    title="আজকের অর্ডারগুলো দেখতে ক্লিক করুন"
+                  >
+                    <span className="text-zinc-500 font-medium group-hover:text-amber-700">আজকের অর্ডার:</span>
+                    <span className="font-bold text-amber-700 group-hover:underline">
+                      {toBengaliNumber(todayOrders.length)} টি &rarr;
+                    </span>
+                  </div>
                 </div>
 
                 <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs">
@@ -1257,13 +1724,32 @@ export default function AdminPage() {
                       নতুন বই যোগ করুন, স্টক পরিবর্তন করুন, মূল্য ও ছবি সম্পাদনা করুন
                     </p>
                   </div>
-                  <button
-                    onClick={handleOpenAddBook}
-                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>নতুন বই যোগ করুন</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        showNotice('সেন্ট্রাল ডাটাবেজ থেকে ডাটা রিফ্রেশ হচ্ছে...');
+                        const res = await syncBooksWithSupabase();
+                        if (res.success) {
+                          showNotice(res.message);
+                        } else {
+                          showNotice(res.message, 'error');
+                        }
+                      }}
+                      className="px-3 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                      title="সেন্ট্রাল ডাটাবেজ থেকে বইয়ের সর্বশেষ তালিকা রিফ্রেশ করুন"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>ডাটা রিফ্রেশ</span>
+                    </button>
+                    <button
+                      onClick={handleOpenAddBook}
+                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>নতুন বই যোগ করুন</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Filters */}
@@ -1301,6 +1787,7 @@ export default function AdminPage() {
                       className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer"
                     >
                       <option value="all">সকল স্টক স্থিতি</option>
+                      <option value="in">ইন স্টক (১+ কপি)</option>
                       <option value="low">কম স্টক (১ থেকে ৫টি)</option>
                       <option value="out">স্টক শেষ (০টি)</option>
                     </select>
@@ -1377,36 +1864,59 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="py-3 px-3">
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateBook(book.id, { stock: Math.max(0, book.stock - 1) })
-                                  }
-                                  className="w-5 h-5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer"
-                                  title="১ কমান"
-                                >
-                                  -
-                                </button>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateBook(book.id, { stock: Math.max(0, (book.stock || 0) - 1) })
+                                    }
+                                    className="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                                    title="১ কমান"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={book.stock ?? 0}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      updateBook(book.id, { stock: isNaN(val) ? 0 : Math.max(0, val) });
+                                    }}
+                                    className={`w-14 text-center py-1 px-1 rounded-lg font-black text-xs border outline-none transition-all ${
+                                      (book.stock || 0) === 0
+                                        ? 'bg-rose-50 border-rose-300 text-rose-700 focus:ring-1 focus:ring-rose-400'
+                                        : (book.stock || 0) <= 5
+                                        ? 'bg-amber-50 border-amber-300 text-amber-800 focus:ring-1 focus:ring-amber-400'
+                                        : 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:ring-1 focus:ring-emerald-400'
+                                    }`}
+                                    title="স্টক সংখ্যা পরিবর্তন করতে লিখুন"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateBook(book.id, { stock: (book.stock || 0) + 1 })}
+                                    className="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                                    title="১ বাড়ান"
+                                  >
+                                    +
+                                  </button>
+                                </div>
                                 <span
-                                  className={`px-2 py-0.5 rounded font-bold ${
-                                    book.stock === 0
-                                      ? 'bg-rose-100 text-rose-800'
-                                      : book.stock <= 5
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-emerald-100 text-emerald-800'
+                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-center inline-block w-fit ${
+                                    (book.stock || 0) === 0
+                                      ? 'text-rose-700 bg-rose-100/70'
+                                      : (book.stock || 0) <= 5
+                                      ? 'text-amber-800 bg-amber-100/70'
+                                      : 'text-emerald-800 bg-emerald-100/70'
                                   }`}
                                 >
-                                  {toBengaliNumber(book.stock)}
+                                  {(book.stock || 0) === 0
+                                    ? 'স্টক শেষ'
+                                    : (book.stock || 0) <= 5
+                                    ? 'সীমিত স্টক'
+                                    : 'ইন স্টক'}
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateBook(book.id, { stock: book.stock + 1 })}
-                                  className="w-5 h-5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer"
-                                  title="১ বাড়ান"
-                                >
-                                  +
-                                </button>
                               </div>
                             </td>
                             <td className="py-3 px-3">
@@ -1440,10 +1950,15 @@ export default function AdminPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    if (confirm(`আপনি কি "${book.title}" বইটি মুছে ফেলতে নিশ্চিত?`)) {
-                                      deleteBook(book.id);
-                                      showNotice(`"${book.title}" মুছে ফেলা হয়েছে!`);
+                                  onClick={async () => {
+                                    if (confirm(`আপনি কি নিশ্চিতভাবে "${book.title}" বইটি ডাটাবেজ এবং সব ব্যবহারকারীর সাইট থেকে মুছে ফেলতে চান?`)) {
+                                      try {
+                                        showNotice(`"${book.title}" মুছে ফেলা হচ্ছে...`);
+                                        await deleteBook(book.id);
+                                        showNotice(`"${book.title}" ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে!`);
+                                      } catch (err: any) {
+                                        showNotice(err.message || 'বইটি মুছতে সমস্যা হয়েছে!', 'error');
+                                      }
                                     }
                                   }}
                                   className="p-1.5 rounded-lg bg-zinc-100 hover:bg-rose-100 hover:text-rose-900 text-zinc-600 transition-colors cursor-pointer"
@@ -1887,22 +2402,148 @@ export default function AdminPage() {
 
           {/* TAB 6: ORDERS */}
           {activeTab === 'orders' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Today's Highlight & Sales Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. আজকের অর্ডার (Interactive Filter Card) */}
+                <div
+                  onClick={() => setOrderDateFilter(orderDateFilter === 'today' ? 'all' : 'today')}
+                  className={`p-5 rounded-3xl border transition-all cursor-pointer select-none relative overflow-hidden group ${
+                    orderDateFilter === 'today'
+                      ? 'bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white border-amber-400 shadow-sm ring-2 ring-amber-400/50'
+                      : 'bg-white border-zinc-200 shadow-xs hover:border-amber-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span className="flex items-center gap-1.5 text-zinc-800">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      আজকের অর্ডার
+                    </span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-all ${
+                        orderDateFilter === 'today'
+                          ? 'bg-amber-500 text-zinc-950 font-black'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {orderDateFilter === 'today' ? '✓ ফিল্টার সক্রিয়' : 'ফিল্টার করুন'}
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                    {toBengaliNumber(todayOrders.length)} <span className="text-sm font-semibold text-zinc-500">টি</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1 flex items-center justify-between">
+                    <span>আজকে প্রাপ্ত মোট অর্ডার</span>
+                    <span className="text-amber-700 font-semibold group-hover:underline">
+                      {orderDateFilter === 'today' ? 'সব অর্ডার দেখুন' : 'শুধুমাত্র আজকেরটি'}
+                    </span>
+                  </p>
+                </div>
+
+                {/* 2. আজকের বিক্রয় (Today's Sales) */}
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs hover:border-emerald-300 transition-all">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span className="flex items-center gap-1.5 text-zinc-800">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      আজকের বিক্রয়
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                      আজকের আয়
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-700 tracking-tight">
+                    {formatPrice(todayRevenue)}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    আজকের সফল ও সক্রিয় বিক্রয় মূল্য
+                  </p>
+                </div>
+
+                {/* 3. আজকের ডেলিভারি ও কুরিয়ার */}
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs hover:border-blue-300 transition-all">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span className="flex items-center gap-1.5 text-zinc-800">
+                      <Truck className="w-4 h-4 text-blue-600" />
+                      আজকের প্রেরিত / ডেলিভার্ড
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                      কুরিয়ার/ডেলিভারি
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                    {toBengaliNumber(todayDeliveredOrders.length)} <span className="text-sm font-semibold text-zinc-500">টি</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    স্টেডফাস্ট বা নিজস্ব ডেলিভারি সম্পন্ন
+                  </p>
+                </div>
+
+                {/* 4. সর্বকালীন মোট বিক্রি */}
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs hover:border-purple-300 transition-all">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span className="flex items-center gap-1.5 text-zinc-800">
+                      <ShoppingBag className="w-4 h-4 text-purple-600" />
+                      সর্বমোট বিক্রয়
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                      সর্বকালীন
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                    {formatPrice(totalRevenue)}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    সর্বমোট {toBengaliNumber(orders.length)} টি অর্ডারের বিক্রয়
+                  </p>
+                </div>
+              </div>
+
+              {/* Order Filter & Management Box */}
               <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-zinc-900">
-                      অর্ডার তালিকা ({toBengaliNumber(filteredOrders.length)} টি অর্ডার)
+                    <h2 className="text-lg sm:text-xl font-bold text-zinc-900 flex items-center gap-2">
+                      <span>অর্ডার তালিকা</span>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                        {toBengaliNumber(filteredOrders.length)} টি অর্ডার
+                      </span>
                     </h2>
-                    <p className="text-xs text-zinc-500">
-                      গ্রাহকদের অর্ডার স্থিতি পরিবর্তন করুন এবং চালান (Invoice) প্রিন্ট করুন
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      গ্রাহকদের অর্ডার স্থিতি পরিবর্তন করুন, স্টেডফাস্টে বুকিং দিন এবং চালান (Invoice) প্রিন্ট করুন
                     </p>
+                  </div>
+
+                  {/* Quick Date Filter Tabs */}
+                  <div className="flex items-center gap-1.5 p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
+                    <button
+                      type="button"
+                      onClick={() => setOrderDateFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        orderDateFilter === 'all'
+                          ? 'bg-white text-zinc-950 shadow-xs'
+                          : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      সব অর্ডার ({toBengaliNumber(orders.length)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderDateFilter('today')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        orderDateFilter === 'today'
+                          ? 'bg-amber-500 text-zinc-950 shadow-xs ring-1 ring-amber-400'
+                          : 'text-amber-800 hover:bg-amber-50'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      আজকের অর্ডার ({toBengaliNumber(todayOrders.length)})
+                    </button>
                   </div>
                 </div>
 
-                {/* Order Filters */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-zinc-100">
-                  <div className="relative">
+                {/* Order Filters Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-zinc-100">
+                  <div className="relative sm:col-span-6">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                     <input
                       type="text"
@@ -1913,11 +2554,22 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-3">
+                    <select
+                      value={orderDateFilter}
+                      onChange={(e) => setOrderDateFilter(e.target.value as 'all' | 'today')}
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer font-medium"
+                    >
+                      <option value="all">📅 সব সময়ের অর্ডার</option>
+                      <option value="today">⚡ শুধুমাত্র আজকের অর্ডার</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-3">
                     <select
                       value={orderStatusFilter}
                       onChange={(e) => setOrderStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer font-medium"
                     >
                       <option value="all">সকল অর্ডার স্থিতি (Status)</option>
                       <option value="pending">প্রক্রিয়াধীন (Pending)</option>
@@ -1928,13 +2580,44 @@ export default function AdminPage() {
                     </select>
                   </div>
                 </div>
+
+                {/* Today Filter Active Notice Banner */}
+                {orderDateFilter === 'today' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="font-bold">আজকের অর্ডার ফিল্টার সক্রিয়:</span>
+                      <span>আজ মোট {toBengaliNumber(todayOrders.length)} টি অর্ডার • আজকের মোট বিক্রয় {formatPrice(todayRevenue)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOrderDateFilter('all')}
+                      className="text-xs font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
+                    >
+                      সব অর্ডার দেখুন
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Order Cards */}
               <div className="space-y-4">
                 {filteredOrders.length === 0 ? (
-                  <div className="bg-white p-10 rounded-3xl border border-zinc-200 text-center text-zinc-400 text-xs">
-                    কোনো অর্ডার পাওয়া যায়নি!
+                  <div className="bg-white p-10 rounded-3xl border border-zinc-200 text-center space-y-3">
+                    <p className="text-zinc-400 text-xs font-medium">
+                      {orderDateFilter === 'today'
+                        ? 'আজকের কোনো অর্ডার পাওয়া যায়নি!'
+                        : 'কোনো অর্ডার পাওয়া যায়নি!'}
+                    </p>
+                    {orderDateFilter === 'today' && (
+                      <button
+                        type="button"
+                        onClick={() => setOrderDateFilter('all')}
+                        className="px-4 py-2 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs hover:bg-amber-400 transition-all cursor-pointer shadow-xs"
+                      >
+                        সব অর্ডার দেখুন
+                      </button>
+                    )}
                   </div>
                 ) : (
                   filteredOrders.map((ord) => (
@@ -1978,6 +2661,45 @@ export default function AdminPage() {
                             <option value="delivered">ডেলিভার্ড (Delivered)</option>
                             <option value="cancelled">বাতিল (Cancelled)</option>
                           </select>
+
+                          {/* Steadfast Courier Action / Status */}
+                          {ord.steadfast_tracking_code ? (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold shadow-2xs">
+                              <Truck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="font-mono text-[11px]">{ord.steadfast_tracking_code}</span>
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-200/80 text-[10px] uppercase font-black text-emerald-950">
+                                {ord.steadfast_status || 'বুকড'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleTrackSteadfastOrder(ord)}
+                                disabled={trackingLoadingOrderId === ord.orderId}
+                                className="p-1 hover:bg-emerald-100 rounded text-emerald-800 transition-colors cursor-pointer"
+                                title="স্টেডফাস্ট থেকে রিয়েলটাইম ট্র্যাকিং রিফ্রেশ করুন"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${trackingLoadingOrderId === ord.orderId ? 'animate-spin' : ''}`} />
+                              </button>
+                              <a
+                                href={`https://steadfast.com.bd/tracking?q=${encodeURIComponent(ord.steadfast_tracking_code || '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 hover:bg-emerald-100 rounded text-emerald-800 transition-colors"
+                                title="স্টেডফাস্ট কুরিয়ার ওয়েবসাইটে দেখুন"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSteadfastModal(ord)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                              title="সরাসরি স্টেডফাস্ট কুরিয়ারে পার্সেল বুক করুন"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>স্টেডফাস্টে পাঠান</span>
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -2031,34 +2753,65 @@ export default function AdminPage() {
                         <div className="space-y-2">
                           <div className="font-bold text-zinc-700">অর্ডারকৃত বইসমূহ:</div>
                           <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                            {ord.items.map((item, idx) => (
+                            {ord.items && Array.isArray(ord.items) && ord.items.map((item, idx) => (
                               <div
                                 key={idx}
                                 className="flex items-center justify-between gap-2 p-1.5 bg-zinc-50 rounded-xl border border-zinc-100"
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   <img
-                                    src={item.book.image}
-                                    alt={item.book.title}
+                                    src={item.book?.image || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=400&h=560&q=80'}
+                                    alt={item.book?.title || 'বই'}
                                     className="w-7 h-9 rounded object-cover border shrink-0"
                                   />
                                   <span className="font-semibold text-zinc-900 truncate">
-                                    {item.book.title}
+                                    {item.book?.title || 'বই'}
                                   </span>
                                 </div>
                                 <div className="text-right shrink-0">
                                   <span className="text-zinc-500">
-                                    {toBengaliNumber(item.quantity)} × {formatPrice(item.book.price)}
+                                    {toBengaliNumber(item.quantity || 1)} × {formatPrice(item.book?.price || 0)}
                                   </span>
                                 </div>
                               </div>
                             ))}
                           </div>
 
-                          <div className="pt-2 flex justify-between items-center text-xs font-bold border-t border-zinc-100">
-                            <span className="text-zinc-500">
-                              ডেলিভারি ফি: {formatPrice(ord.deliveryFee)}
-                            </span>
+                          <div className="pt-2 flex flex-wrap justify-between items-center gap-2 text-xs font-bold border-t border-zinc-100">
+                            <div className="flex items-center gap-2">
+                              <span className="text-zinc-500">
+                                ডেলিভারি ফি: {formatPrice(ord.deliveryFee)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = window.prompt(
+                                    `অর্ডার ${ord.orderId}-এর নতুন ডেলিভারি ফি (টাকায়) লিখুন:`,
+                                    String(ord.deliveryFee ?? 0)
+                                  );
+                                  if (input !== null && input.trim() !== '') {
+                                    const parsed = parseFloat(input.trim());
+                                    if (!isNaN(parsed) && parsed >= 0) {
+                                      const oldFee = Number(ord.deliveryFee) || 0;
+                                      const diff = parsed - oldFee;
+                                      const updatedTotal = Math.max(0, (ord.total || 0) + diff);
+                                      updateOrder(ord.orderId, {
+                                        deliveryFee: parsed,
+                                        total: updatedTotal,
+                                      });
+                                      showNotice(`অর্ডার ${ord.orderId}-এর ডেলিভারি ফি ${formatPrice(parsed)} নির্ধারণ করা হয়েছে!`);
+                                    } else {
+                                      showNotice('সঠিক সংখ্যা লিখুন (যেমন: ৬০ বা ১২০ বা ০)', 'error');
+                                    }
+                                  }
+                                }}
+                                className="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                title="এই অর্ডারের ডেলিভারি ফি পরিবর্তন করুন"
+                              >
+                                <Edit2 className="w-2.5 h-2.5" />
+                                <span>চার্জ এডিট</span>
+                              </button>
+                            </div>
                             <span className="text-sm text-zinc-950">
                               সর্বমোট: <strong className="text-amber-700">{formatPrice(ord.total)}</strong>
                             </span>
@@ -2072,14 +2825,725 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* TAB 8: STORE & CONTACT SETTINGS */}
+          {activeTab === 'store_settings' && (
+            <div className="space-y-6">
+              {/* Header Card */}
+              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                      <MapPin className="w-5 h-5 text-amber-700" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-zinc-900">যোগাযোগের ঠিকানা ও স্টোর সেটিংস</h2>
+                      <p className="text-xs text-zinc-500">
+                        ওয়েবসাইটের ঠিকানা, হেল্পলাইন নম্বর, ইমেইল, টপবার নোটিশ ও সামাজিক মাধ্যমের লিংক পরিচালনা করুন
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isContactSaving}
+                  onClick={handleSaveContactSettings}
+                  className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-2xl text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition-all shadow-sm active:scale-98 disabled:opacity-50 self-start sm:self-auto shrink-0"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isContactSaving ? 'সংরক্ষণ হচ্ছে...' : 'সেটিংস সংরক্ষণ করুন'}</span>
+                </button>
+              </div>
+
+              {/* Live Preview Box */}
+              <div className="bg-[#1D1B15] text-white p-5 sm:p-6 rounded-3xl border border-amber-900/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">লাইভ প্রিভিউ (Live Preview)</span>
+                  </div>
+                  <span className="text-[11px] text-zinc-400">ওয়েবসাইটে যেমন দেখাবে</span>
+                </div>
+
+                {/* Topbar Preview */}
+                <div className="bg-[#12110D] p-3 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#E5A913] text-zinc-950 font-black px-2 py-0.5 rounded text-[11px] flex items-center gap-1 shrink-0">
+                      <Tag className="w-3 h-3" /> {contactForm.announcement_badge || 'অফার'}
+                    </span>
+                    <span className="text-zinc-300 text-[11px] sm:text-xs">
+                      {contactForm.announcement_text || 'কোনো নোটিশ নেই'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
+                    <Phone className="w-3 h-3 text-[#E5A913]" />
+                    <span>{contactForm.phone || '০১৭০০-০০০০০০'}</span>
+                  </div>
+                </div>
+
+                {/* Footer preview block */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-[#24211A] p-4 rounded-2xl border border-zinc-800/80">
+                  <div className="space-y-1">
+                    <span className="text-zinc-400 text-[11px] block font-semibold">ঠিকানা:</span>
+                    <div className="flex items-start gap-1.5 text-zinc-200">
+                      <MapPin className="w-3.5 h-3.5 text-[#E5A913] shrink-0 mt-0.5" />
+                      <span>{contactForm.address || 'ঠিকানা সেট করা হয়নি'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-zinc-400 text-[11px] block font-semibold">যোগাযোগ ও সময়সূচী:</span>
+                    <div className="space-y-0.5 text-zinc-200 text-[11px]">
+                      <p>📞 {contactForm.phone} {contactForm.alt_phone ? `/ ${contactForm.alt_phone}` : ''}</p>
+                      <p>✉️ {contactForm.email}</p>
+                      <p className="text-zinc-400">🕒 {contactForm.support_hours}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Cards */}
+              <form onSubmit={handleSaveContactSettings} className="space-y-6">
+                {/* 1. Address & Location */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <MapPin className="w-5 h-5 text-amber-600" />
+                    <h3 className="font-bold text-base text-zinc-900">১. স্টোরের অবস্থান ও পূর্ণ ঠিকানা</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-zinc-700">
+                      ঠিকানা (Physical Store Address)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={contactForm.address}
+                      onChange={(e) => setContactForm({ ...contactForm, address: e.target.value })}
+                      placeholder="যেমন: কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫"
+                      className="w-full px-4 py-3 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-500">
+                      এটি ফুটার, যোগাযোগের পেজ এবং ইনভয়েসে গ্রাহকদের প্রদর্শিত হবে।
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Customer Support & Helpline */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Phone className="w-5 h-5 text-amber-600" />
+                    <h3 className="font-bold text-base text-zinc-900">২. কাস্টমার সাপোর্ট ও হেল্পলাইন</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        প্রধান হেল্পলাইন / ফোন নম্বর (Primary Phone)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.phone}
+                        onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                        placeholder="যেমন: ০১৭০০-০০০০০০"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        বিকল্প ফোন নম্বর (Alternate Phone - ঐচ্ছিক)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.alt_phone}
+                        onChange={(e) => setContactForm({ ...contactForm, alt_phone: e.target.value })}
+                        placeholder="যেমন: ০১৯০০-০০০০০০"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        অফিশিয়াল সাপোর্ট ইমেইল (Support Email)
+                      </label>
+                      <input
+                        type="email"
+                        value={contactForm.email}
+                        onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                        placeholder="যেমন: support@shesherpata.com"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        কাস্টমার কেয়ার সময়সূচী (Operating Hours)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.support_hours}
+                        onChange={(e) => setContactForm({ ...contactForm, support_hours: e.target.value })}
+                        placeholder="যেমন: প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Top Announcement Bar */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Tag className="w-5 h-5 text-amber-600" />
+                    <h3 className="font-bold text-base text-zinc-900">৩. ওয়েবসাইটের শীর্ষ নোটিশ ও ঘোষণা (Top Announcement Bar)</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2 sm:col-span-1">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ঘোষণা ব্যাজ (Badge Text)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.announcement_badge}
+                        onChange={(e) => setContactForm({ ...contactForm, announcement_badge: e.target.value })}
+                        placeholder="যেমন: অফার / বিশেষ ছাড়"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ঘোষণা বার্তা ও অফার টেক্সট (Notice Message)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.announcement_text}
+                        onChange={(e) => setContactForm({ ...contactForm, announcement_text: e.target.value })}
+                        placeholder="যেমন: বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. About Us & Store Mission */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <BookOpen className="w-5 h-5 text-amber-600" />
+                    <h3 className="font-bold text-base text-zinc-900">৪. আমাদের সম্পর্কে ও পরিচিতি বার্তা (About Us Message)</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-zinc-700">
+                      সংক্ষিপ্ত পরিচিতি ও মিশন
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={contactForm.about_text}
+                      onChange={(e) => setContactForm({ ...contactForm, about_text: e.target.value })}
+                      placeholder="যেমন: 'শেষের পাতা' কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা..."
+                      className="w-full px-4 py-3 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-500">
+                      এই বার্তাটি 'আমাদের সম্পর্কে' পেজ এবং ওয়েবসাইটের বিভিন্ন অংশে প্রদর্শিত হয়।
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. Social Media & Messaging */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Globe className="w-5 h-5 text-amber-600" />
+                    <h3 className="font-bold text-base text-zinc-900">৫. সোশ্যাল মিডিয়া ও মেসেজিং লিংক</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ফেসবুক পেজ লিংক (Facebook URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={contactForm.facebook_url}
+                        onChange={(e) => setContactForm({ ...contactForm, facebook_url: e.target.value })}
+                        placeholder="https://facebook.com/..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ইনস্টাগ্রাম প্রোফাইল লিংক (Instagram URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={contactForm.instagram_url}
+                        onChange={(e) => setContactForm({ ...contactForm, instagram_url: e.target.value })}
+                        placeholder="https://instagram.com/..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        হোয়াটসঅ্যাপ নম্বর (WhatsApp Number)
+                      </label>
+                      <input
+                        type="text"
+                        value={contactForm.whatsapp_number}
+                        onChange={(e) => setContactForm({ ...contactForm, whatsapp_number: e.target.value })}
+                        placeholder="+8801700000000"
+                        className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. Delivery Charges & Free Shipping Policy */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Truck className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <h3 className="font-bold text-base text-zinc-900">৬. ডেলিভারি চার্জ ও ফ্রি ডেলিভারি সেটিংস (Delivery Charges & Free Shipping)</h3>
+                      <p className="text-[11px] text-zinc-500">
+                        ওয়েবসাইটের কার্ট ও চেকআউট ফর্মে ঢাকা ও ঢাকার বাইরের ডেলিভারি চার্জ নির্ধারণ করুন
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ঢাকা সিটির ভেতরে ডেলিভারি চার্জ (৳)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm">৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={contactForm.delivery_charge_inside}
+                          onChange={(e) => setContactForm({ ...contactForm, delivery_charge_inside: Number(e.target.value) || 0 })}
+                          placeholder="60"
+                          className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm font-semibold transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">ডিফল্ট: ৬০ টাকা</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ঢাকার বাইরে ডেলিভারি চার্জ (৳)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm">৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={contactForm.delivery_charge_outside}
+                          onChange={(e) => setContactForm({ ...contactForm, delivery_charge_outside: Number(e.target.value) || 0 })}
+                          placeholder="120"
+                          className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm font-semibold transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">ডিফল্ট: ১২০ টাকা</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-zinc-700">
+                        ফ্রি ডেলিভারি ন্যূনতম অর্ডার মূল্য (৳)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm">৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={contactForm.free_delivery_threshold}
+                          onChange={(e) => setContactForm({ ...contactForm, free_delivery_threshold: Number(e.target.value) || 0 })}
+                          placeholder="1500"
+                          className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm font-semibold transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">এই পরিমাণের বেশি অর্ডারে চার্জ ০ হবে (০ দিলে বন্ধ)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Save Bar */}
+                <div className="p-4 bg-white rounded-2xl border border-zinc-200 flex items-center justify-end gap-3 sticky bottom-4 shadow-lg z-20">
+                  <button
+                    type="submit"
+                    disabled={isContactSaving}
+                    className="px-8 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-extrabold rounded-xl text-sm flex items-center gap-2 cursor-pointer transition-all shadow-md active:scale-98 disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isContactSaving ? 'সংরক্ষণ হচ্ছে...' : 'সকল তথ্য ও সেটিংস সংরক্ষণ করুন'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB: STEADFAST COURIER INTEGRATION */}
+          {activeTab === 'steadfast' && (
+            <div className="space-y-6">
+              {/* Header Card */}
+              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                      <Truck className="w-5 h-5 text-emerald-700" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-zinc-900">স্টেডফাস্ট কুরিয়ার ইন্টিগ্রেশন (Steadfast Courier API)</h2>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            isSteadfastConnected
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+                          }`}
+                        >
+                          {isSteadfastConnected ? '✓ সংযুক্ত / Connected' : 'নিষ্ক্রিয় / Disconnected'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500">
+                        সরাসরি স্টেডফাস্ট এপিআই যুক্ত করে এক ক্লিকে পার্সেল বুকিং, ট্র্যাকিং কোড জেনারেশন ও ব্যালেন্স চেক করুন
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCheckSteadfastBalance}
+                    disabled={isCheckingBalance}
+                    className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-2xl text-xs flex items-center gap-2 cursor-pointer transition-colors border border-emerald-200 disabled:opacity-50"
+                    title="স্টেডফাস্ট সার্ভারের সাথে সংযোগ যাচাই ও বর্তমান একাউন্ট ব্যালেন্স দেখুন"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingBalance ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingBalance ? 'যাচাই হচ্ছে...' : 'কানেকশন টেস্ট ও ব্যালেন্স'}</span>
+                  </button>
+
+                  {isSteadfastConnected && (
+                    <button
+                      type="button"
+                      disabled={isSteadfastDisconnecting}
+                      onClick={handleDisconnectSteadfast}
+                      className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-2xl text-xs flex items-center gap-1.5 cursor-pointer transition-all border border-rose-200 disabled:opacity-50"
+                      title="স্টেডফাস্ট ডিসকানেক্ট করুন"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>{isSteadfastDisconnecting ? 'ডিসকানেক্ট হচ্ছে...' : 'ডিসকানেক্ট'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Balance Alert Banner if tested */}
+              {steadfastBalance !== null && (
+                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-900">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">স্টেডফাস্ট এপিআই সফলভাবে সংযুক্ত!</div>
+                      <div className="text-xs text-emerald-700">আপনার মার্চেন্ট একাউন্টের সাথে এনক্রিপ্টেড সংযোগ সক্রিয় আছে।</div>
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right bg-white px-4 py-2 rounded-xl border border-emerald-200 shrink-0">
+                    <span className="text-[10px] text-zinc-500 font-bold block uppercase">বর্তমান ব্যালেন্স</span>
+                    <span className="text-lg font-black text-emerald-800">{formatPrice(steadfastBalance)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Statistics Overview Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span>স্টেডফাস্টে পাঠানো অর্ডার</span>
+                    <Truck className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-2xl font-black text-zinc-900">
+                    {toBengaliNumber(orders.filter((o) => o.steadfast_tracking_code).length)} টি
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1">সরাসরি বুকিং সম্পন্ন</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span>কুরিয়ারে চলমান (In Transit)</span>
+                    <Package className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-2xl font-black text-amber-700">
+                    {toBengaliNumber(
+                      orders.filter((o) => o.steadfast_tracking_code && o.status === 'shipped').length
+                    )} টি
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1">ডেলিভারির অপেক্ষায় আছে</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs">
+                  <div className="flex items-center justify-between text-zinc-500 text-xs mb-2 font-bold">
+                    <span>ডেলিভারি সম্পন্ন (Delivered)</span>
+                    <CheckCircle className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-2xl font-black text-indigo-800">
+                    {toBengaliNumber(
+                      orders.filter((o) => o.steadfast_tracking_code && (o.status === 'delivered' || o.steadfast_status === 'delivered')).length
+                    )} টি
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1">সফলভাবে গ্রাহকের হাতে পৌঁছেছে</p>
+                </div>
+              </div>
+
+              {/* API Credentials Card */}
+              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-zinc-200 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-100 gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    <h3 className="font-bold text-base text-zinc-900">স্টেডফাস্ট এপিআই ক্রেডেনশিয়ালস</h3>
+                  </div>
+                  {isSteadfastConnected && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>✓ Steadfast Connected</span>
+                      </span>
+                      {steadfastLastVerifiedAt && (
+                        <span className="text-zinc-500 text-[11px]">
+                          Last verified: {new Date(steadfastLastVerifiedAt).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-zinc-700">
+                      স্টেডফাস্ট API Key *
+                    </label>
+                    <input
+                      type="text"
+                      value={steadfastApiKey}
+                      onChange={(e) => setSteadfastApiKey(e.target.value)}
+                      placeholder={isSteadfastConnected ? '•••••••••••••••• (সংরক্ষিত আছে, পরিবর্তন করতে নতুন কি দিন)' : 'যেমন: abcdef1234567890...'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs sm:text-sm font-mono transition-all"
+                    />
+                    <p className="text-[11px] text-zinc-500">
+                      আপনার মার্চেন্ট প্যানেলের Settings &gt; API Details থেকে সংগ্রহ করুন
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-zinc-700">
+                      স্টেডফাস্ট Secret Key *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showSteadfastSecret ? 'text' : 'password'}
+                        value={steadfastSecretKey}
+                        onChange={(e) => setSteadfastSecretKey(e.target.value)}
+                        placeholder={isSteadfastConnected ? '••••••••••••••••' : 'যেমন: sec_123456...'}
+                        className="w-full px-4 py-2.5 pr-10 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs sm:text-sm font-mono transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSteadfastSecret(!showSteadfastSecret)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                      >
+                        {showSteadfastSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      এই কি-টি AES-256-GCM এনক্রিপশন সহ ডাটাবেজে নিরাপদ থাকবে
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 gap-3 border-t border-zinc-100">
+                  <p className="text-xs text-zinc-500">
+                    {isSteadfastConnected
+                      ? '✓ স্টেডফাস্ট অ্যাকাউন্ট সফলভাবে সংযুক্ত। নতুন ক্রিডেনশিয়ালস দিলে কানেক্ট বাটনে ক্লিক করে আপডেট করতে পারেন।'
+                      : 'এপিআই তথ্য প্রদান করে নিচের Connect Steadfast বাটনে ক্লিক করুন।'}
+                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isSteadfastConnected && (
+                      <button
+                        type="button"
+                        disabled={isSteadfastDisconnecting}
+                        onClick={handleDisconnectSteadfast}
+                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all border border-rose-200 disabled:opacity-50 shrink-0"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>{isSteadfastDisconnecting ? 'ডিসকানেক্ট হচ্ছে...' : 'Disconnect'}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={isSteadfastConnecting}
+                      onClick={handleConnectSteadfast}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-98 disabled:opacity-50 shrink-0"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSteadfastConnecting ? 'animate-spin' : ''}`} />
+                      <span>{isSteadfastConnecting ? 'যাচাই ও কানেক্ট হচ্ছে...' : (isSteadfastConnected ? 'আপডেট করুন (Connect)' : 'Connect Steadfast')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Guide Box */}
+                <div className="p-4 bg-[#FAF8F4] border border-amber-200/80 rounded-2xl text-xs space-y-2">
+                  <div className="font-bold text-zinc-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>কীভাবে এপিআই কি পাবেন?</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-zinc-600 leading-relaxed">
+                    <li>
+                      <a
+                        href="https://steadfast.com.bd/login"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-amber-800 font-bold underline inline-flex items-center gap-1"
+                      >
+                        <span>স্টেডফাস্ট মার্চেন্ট পোর্টালে (steadfast.com.bd)</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>{' '}
+                      লগইন করুন।
+                    </li>
+                    <li>বাম পাশের মেনু থেকে <strong>Settings &gt; API Details</strong> এ যান।</li>
+                    <li>সেখান থেকে <strong>API Key</strong> এবং <strong>Secret Key</strong> কপি করে উপরের ফিল্ডে বসান।</li>
+                    <li>এরপর <strong>&quot;Connect Steadfast&quot;</strong> বাটনে ক্লিক করলে তা সরাসরি যাচাই হয়ে এনক্রিপ্ট আকারে সুরক্ষিত হবে।</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Steadfast Orders List Table */}
+              <div className="bg-white rounded-3xl border border-zinc-200 shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-base text-zinc-900">স্টেডফাস্টে বুকিংকৃত পার্সেল তালিকা</h3>
+                    <p className="text-xs text-zinc-500">যে সকল অর্ডার সরাসরি স্টেডফাস্ট কুরিয়ারে বুক করা হয়েছে</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('orders')}
+                    className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>সব অর্ডার দেখুন ও নতুন বুক করুন</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF8F4] text-zinc-700 font-bold uppercase tracking-wider border-b border-zinc-200">
+                      <tr>
+                        <th className="py-3 px-3">অর্ডার আইডি ও তারিখ</th>
+                        <th className="py-3 px-3">গ্রাহক ও মোবাইল</th>
+                        <th className="py-3 px-3">ঠিকানা</th>
+                        <th className="py-3 px-3">COD পরিমাণ</th>
+                        <th className="py-3 px-3">স্টেডফাস্ট ট্র্যাকিং</th>
+                        <th className="py-3 px-3">কুরিয়ার স্থিতি</th>
+                        <th className="py-3 px-3 text-right">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {orders.filter((o) => o.steadfast_tracking_code).length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-12 text-zinc-400">
+                            এখনো কোনো অর্ডার স্টেডফাস্টে পাঠানো হয়নি। &apos;অর্ডার তালিকা&apos; থেকে যে কোনো অর্ডারের পাশে &quot;স্টেডফাস্টে পাঠান&quot; চাপুন।
+                          </td>
+                        </tr>
+                      ) : (
+                        orders
+                          .filter((o) => o.steadfast_tracking_code)
+                          .map((ord) => (
+                            <tr key={ord.orderId} className="hover:bg-emerald-50/20 transition-colors">
+                              <td className="py-3 px-3">
+                                <div className="font-bold text-zinc-900">{ord.orderId}</div>
+                                <div className="text-[11px] text-zinc-400">{ord.date}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-zinc-800">{ord.customerName}</div>
+                                <div className="text-[11px] text-zinc-500 font-mono">{ord.phone}</div>
+                              </td>
+                              <td className="py-3 px-3 max-w-[200px] truncate" title={`${ord.address}, ${ord.thana}, ${ord.district}`}>
+                                {ord.address}, {ord.district}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="font-bold text-zinc-900">{formatPrice(ord.total)}</span>
+                                <span className="block text-[10px] text-zinc-400 uppercase font-semibold">
+                                  {ord.paymentMethod === 'cod' ? 'ক্যাশ অন ডেলিভারি' : 'পরিশোধিত'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                                  {ord.steadfast_tracking_code}
+                                </span>
+                                {ord.steadfast_consignment_id && (
+                                  <div className="text-[10px] text-zinc-400">CID: #{ord.steadfast_consignment_id}</div>
+                                )}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                                  {ord.steadfast_status || 'booked'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTrackSteadfastOrder(ord)}
+                                    disabled={trackingLoadingOrderId === ord.orderId}
+                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
+                                    title="লাইভ ট্র্যাকিং রিফ্রেশ করুন"
+                                  >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${trackingLoadingOrderId === ord.orderId ? 'animate-spin' : ''}`} />
+                                  </button>
+                                  <a
+                                    href={`https://steadfast.com.bd/tracking?q=${encodeURIComponent(ord.steadfast_tracking_code || '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition-colors"
+                                    title="স্টেডফাস্ট পোর্টালে বিস্তারিত ট্র্যাকিং"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 7: SETTINGS & BACKUP */}
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-xs space-y-2">
-                <h2 className="text-xl font-bold text-zinc-900">সেটিংস ও ব্যাকআপ (Settings)</h2>
-                <p className="text-xs sm:text-sm text-zinc-500">
-                  ওয়েবসাইটের মেটা পিক্সেল ট্র্যাকিং কনফিগারেশন, ডেটা ব্যাকআপ ও সিস্টেম রিস্টোর পরিচালনা করুন
-                </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-zinc-900">সেটিংস ও ব্যাকআপ (Settings)</h2>
+                    <p className="text-xs sm:text-sm text-zinc-500">
+                      ওয়েবসাইটের মেটা পিক্সেল ট্র্যাকিং কনফিগারেশন, ডেটা ব্যাকআপ ও সিস্টেম রিস্টোর পরিচালনা করুন
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('store_settings')}
+                    className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>ঠিকানা ও যোগাযোগ সেটিংস</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* --------------------------------------------------------- */}
@@ -2502,10 +3966,13 @@ export default function AdminPage() {
                     required
                     value={bookForm.stock}
                     onChange={(e) =>
-                      setBookForm({ ...bookForm, stock: Number(e.target.value) })
+                      setBookForm({ ...bookForm, stock: Math.max(0, Number(e.target.value)) })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm font-bold bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
                   />
+                  <p className="text-[10px] text-zinc-500 mt-1">
+                    ০ হলে বই পেজে &quot;স্টক শেষ&quot; দেখাবে এবং গ্রাহক কিনতে পারবেন না
+                  </p>
                 </div>
               </div>
 
@@ -2693,10 +4160,17 @@ export default function AdminPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                  disabled={isSavingBook}
+                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{editingBookId ? 'পরিবর্তন সংরক্ষণ করুন' : 'বই আপলোড সম্পন্ন করুন'}</span>
+                  <span>
+                    {isSavingBook
+                      ? 'সংরক্ষণ হচ্ছে...'
+                      : editingBookId
+                      ? 'পরিবর্তন সংরক্ষণ করুন'
+                      : 'বই আপলোড সম্পন্ন করুন'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -3355,15 +4829,15 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200">
-                  {selectedOrderForInvoice.items.map((it, idx) => (
+                  {selectedOrderForInvoice.items && Array.isArray(selectedOrderForInvoice.items) && selectedOrderForInvoice.items.map((it, idx) => (
                     <tr key={idx}>
                       <td className="p-2">
-                        <div className="font-bold text-zinc-900">{it.book.title}</div>
-                        <div className="text-[10px] text-zinc-500">{it.book.author}</div>
+                        <div className="font-bold text-zinc-900">{it.book?.title || 'বই'}</div>
+                        <div className="text-[10px] text-zinc-500">{it.book?.author || ''}</div>
                       </td>
-                      <td className="p-2 text-center">{toBengaliNumber(it.quantity)}</td>
+                      <td className="p-2 text-center">{toBengaliNumber(it.quantity || 1)}</td>
                       <td className="p-2 text-right font-semibold">
-                        {formatPrice(it.book.price * it.quantity)}
+                        {formatPrice((it.book?.price || 0) * (it.quantity || 1))}
                       </td>
                     </tr>
                   ))}
@@ -3391,6 +4865,207 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* STEADFAST COURIER DISPATCH MODAL */}
+      {isSteadfastDispatchModalOpen && selectedOrderForSteadfast && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">স্টেডফাস্ট কুরিয়ারে বুকিং</h3>
+                  <p className="text-xs text-emerald-100">অর্ডার #{selectedOrderForSteadfast.orderId}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSteadfastDispatchModalOpen(false);
+                  setSelectedOrderForSteadfast(null);
+                }}
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConfirmSteadfastDispatch} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-700">ইনভয়েস / রেফারেন্স ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={dispatchForm.invoice}
+                    onChange={(e) => setDispatchForm({ ...dispatchForm, invoice: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-mono font-bold bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-700">ক্যাশ অন ডেলিভারি (COD ৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={dispatchForm.cod_amount}
+                    onChange={(e) => setDispatchForm({ ...dispatchForm, cod_amount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-bold bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-700">প্রাপকের নাম *</label>
+                  <input
+                    type="text"
+                    required
+                    value={dispatchForm.recipient_name}
+                    onChange={(e) => setDispatchForm({ ...dispatchForm, recipient_name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-semibold bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-700">মোবাইল নম্বর (১১ ডিজিট) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={dispatchForm.recipient_phone}
+                    onChange={(e) => setDispatchForm({ ...dispatchForm, recipient_phone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-mono font-bold bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-zinc-700">পূর্ণাঙ্গ ডেলিভারি ঠিকানা *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={dispatchForm.recipient_address}
+                  onChange={(e) => setDispatchForm({ ...dispatchForm, recipient_address: e.target.value })}
+                  placeholder="বাড়ি/রোড, থানা, জেলা..."
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-medium bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-zinc-700">ডেলিভারি নোট / পণ্যের বিবরণ</label>
+                <input
+                  type="text"
+                  value={dispatchForm.note}
+                  onChange={(e) => setDispatchForm({ ...dispatchForm, note: e.target.value })}
+                  placeholder="যেমন: বই ডেলিভারি — সাবধানে হ্যান্ডেল করুন"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-zinc-50 outline-none focus:bg-white focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Order Items Preview */}
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200">
+                <span className="font-bold text-zinc-700 block mb-1">অর্ডারকৃত বইসমূহ:</span>
+                <p className="text-zinc-600 truncate">
+                  {selectedOrderForSteadfast.items && Array.isArray(selectedOrderForSteadfast.items)
+                    ? selectedOrderForSteadfast.items.map((it) => `${it.book?.title || 'বই'} (${it.quantity || 1}টি)`).join(', ')
+                    : 'কোনো বই নেই'}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSteadfastDispatchModalOpen(false);
+                    setSelectedOrderForSteadfast(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-zinc-300 hover:bg-zinc-100 font-bold text-zinc-700 transition-colors cursor-pointer"
+                >
+                  বাতিল
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isDispatching}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <Send className={`w-3.5 h-3.5 ${isDispatching ? 'animate-pulse' : ''}`} />
+                  <span>{isDispatching ? 'স্টেডফাস্টে পাঠানো হচ্ছে...' : 'নিশ্চিত করুন ও বুক করুন'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+class AdminErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Admin Panel Exception caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#12110D] text-white flex flex-col items-center justify-center p-6 text-center font-['Noto_Sans_Bengali',sans-serif]">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">অ্যাডমিন পোর্টাল লোড করতে সমস্যা হয়েছে</h2>
+          <p className="text-xs text-zinc-400 max-w-md mb-6">
+            {this.state.error?.message || 'ব্রাউজারের ক্যাশ বা ডেটাবেজ অমিলের কারণে একটি সমস্যা ঘটেছে।'}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('shesher_pata_orders_v1');
+                  localStorage.removeItem('shesher_pata_books_v1');
+                  window.location.reload();
+                }
+              }}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              ক্যাশ ক্লিয়ার করে পুনরায় চালু করুন
+            </button>
+            <Link
+              href="/"
+              className="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl text-xs transition-colors"
+            >
+              হোমপেজে ফিরে যান
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function AdminPage() {
+  return (
+    <AdminErrorBoundary>
+      <AdminDashboardContent />
+    </AdminErrorBoundary>
   );
 }

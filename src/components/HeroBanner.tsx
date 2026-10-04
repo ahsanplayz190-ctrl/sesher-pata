@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, BookOpen, Sparkles, ChevronLeft, ChevronRight, Gift, Tag, Truck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useData } from '../context/DataContext';
 
 interface HeroBannerProps {
   onExploreClick: () => void;
@@ -62,6 +63,7 @@ const HERO_SLIDES: Slide[] = [
 ];
 
 export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNowClick }) => {
+  const { siteSettings } = useData();
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -140,7 +142,11 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
 
                 <div className="pt-0.5 text-xs text-zinc-700 font-semibold flex items-center justify-center md:justify-start gap-2">
                   <Phone className="w-3.5 h-3.5 text-[#E5A913]" />
-                  <span>{currentSlide.highlightText}</span>
+                  <span>
+                    {currentSlide.id === 'slide-1' && siteSettings?.phone
+                      ? `হটলাইন: ${siteSettings.phone}${siteSettings.alt_phone ? ` / ${siteSettings.alt_phone}` : ''}`
+                      : currentSlide.highlightText}
+                  </span>
                 </div>
 
                 {/* Action Buttons */}

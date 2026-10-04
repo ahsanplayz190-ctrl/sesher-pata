@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Facebook, Twitter, Instagram, Youtube, Check, Heart } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
+import { useData } from '../context/DataContext';
 
 interface FooterProps {
   onNavigate: (navId: string) => void;
@@ -12,6 +13,7 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) => {
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const { siteSettings } = useData();
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +101,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
               {/* Social Circles */}
               <div className="flex items-center gap-2 pt-1">
                 <a
-                  href="https://facebook.com"
+                  href={siteSettings?.facebook_url || "https://facebook.com"}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1877F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
@@ -108,7 +110,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                   <Facebook className="w-4 h-4" />
                 </a>
                 <a
-                  href="https://instagram.com"
+                  href={siteSettings?.instagram_url || "https://instagram.com"}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#E4405F] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
@@ -136,15 +138,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                 </a>
               </div>
 
-              {/* Payment partner - bKash only */}
+              {/* Payment method - Cash on Delivery */}
               <div className="pt-2">
-                <span className="text-[11px] text-zinc-400 block mb-1.5 font-medium">নিরাপদ পেমেন্ট পার্টনার:</span>
-                <div className="inline-flex items-center bg-white rounded-lg p-1.5 shadow-xs border border-zinc-200/50">
-                  <img
-                    src="/images/images.png"
-                    alt="bKash Payment"
-                    className="h-7 w-auto object-contain"
-                  />
+                <span className="text-[11px] text-zinc-400 block mb-1.5 font-medium">পেমেন্ট সুবিধা:</span>
+                <div className="inline-flex items-center gap-2 bg-[#231F14] border border-[#3E341F] rounded-xl px-3 py-2 text-xs font-semibold text-amber-400 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>ক্যাশ অন ডেলিভারি (বই পেয়ে টাকা)</span>
                 </div>
               </div>
             </div>
@@ -240,18 +239,21 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
               <div className="space-y-2.5 text-xs text-zinc-400">
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-[#E5A913] shrink-0 mt-0.5" />
-                  <span>কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫</span>
+                  <span>{siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-[#E5A913] shrink-0" />
-                  <span>হটলাইন: ০১৭০০-০০০০০০ / ০১৯০০-০০০০০০</span>
+                  <span>
+                    হটলাইন: {siteSettings?.phone || '০১৭০০-০০০০০০'}
+                    {siteSettings?.alt_phone ? ` / ${siteSettings.alt_phone}` : ''}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-[#E5A913] shrink-0" />
-                  <span>ইমেইল: support@shesherpata.com</span>
+                  <span>ইমেইল: {siteSettings?.email || 'support@shesherpata.com'}</span>
                 </div>
                 <p className="text-[11px] text-zinc-500 pt-1">
-                  সাপোর্ট টিম সক্রিয়: প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত।
+                  সাপোর্ট টিম সক্রিয়: {siteSettings?.support_hours || 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত'}
                 </p>
               </div>
             </div>

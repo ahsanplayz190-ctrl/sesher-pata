@@ -1,0 +1,23 @@
+# Apache / LiteSpeed configuration for Next.js on cPanel
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Allow direct access to pre-built static files in .next/static
+  RewriteRule ^_next/static/(.*)$ .next/static/$1 [L]
+</IfModule>
+
+# Ensure Apache / LiteSpeed does not block access to .next static assets
+<IfModule mod_authz_core.c>
+  <DirectoryMatch "^\.next">
+    Require all granted
+  </DirectoryMatch>
+</IfModule>
+
+# Set correct MIME types and caching headers for static assets
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|woff2?|ttf|eot|svg|png|jpg|jpeg|webp|gif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

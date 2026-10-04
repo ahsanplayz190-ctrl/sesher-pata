@@ -41,8 +41,10 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   useEffect(() => {
     if (book) {
       trackViewContent(book);
+      setQuantity(book.stock > 0 ? 1 : 0);
+      setActiveImage(book.cover_image || book.image);
     }
-  }, [book?.id]);
+  }, [book?.id, book?.stock]);
 
   // Gallery images (fallback to main cover)
   const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.image];
@@ -167,58 +169,102 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               </div>
 
               {/* Stock Status */}
-              <div className="flex items-center gap-2 text-xs font-semibold mb-6">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-emerald-700">ইন স্টক ({toBengaliNumber(book.stock)} টি কপি উপলব্ধ)</span>
+              <div className="mb-6">
+                {book.stock <= 0 ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                    <span>স্টক শেষ (বর্তমানে স্টকে নেই)</span>
+                  </div>
+                ) : book.stock <= 5 ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span>সীমিত স্টক — মাত্র {toBengaliNumber(book.stock)} টি কপি বাকি আছে!</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>ইন স্টক ({toBengaliNumber(book.stock)} টি কপি উপলব্ধ)</span>
+                  </div>
+                )}
               </div>
 
               {/* Quantity Selector & Action Buttons */}
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-zinc-700">পরিমাণ:</span>
-                  <div className="flex items-center rounded-xl border border-zinc-300 bg-zinc-50 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="px-3 py-1.5 text-zinc-700 hover:bg-zinc-200 font-bold transition-colors cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="px-4 py-1.5 font-bold text-sm text-zinc-900">
-                      {toBengaliNumber(quantity)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((q) => Math.min(book.stock, q + 1))}
-                      className="px-3 py-1.5 text-zinc-700 hover:bg-zinc-200 font-bold transition-colors cursor-pointer"
-                    >
-                      +
-                    </button>
+                {book.stock > 0 ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-zinc-700">পরিমাণ:</span>
+                    <div className="flex items-center rounded-xl border border-zinc-300 bg-zinc-50 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        disabled={quantity <= 1}
+                        className="px-3 py-1.5 text-zinc-700 hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold transition-colors cursor-pointer"
+                        title="১ কমান"
+                      >
+                        -
+                      </button>
+                      <span className="px-4 py-1.5 font-bold text-sm text-zinc-900">
+                        {toBengaliNumber(quantity)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setQuantity((q) => Math.min(book.stock, q + 1))}
+                        disabled={quantity >= book.stock}
+                        className="px-3 py-1.5 text-zinc-700 hover:bg-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold transition-colors cursor-pointer"
+                        title="১ বাড়ান"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {book.stock <= 5 && (
+                      <span className="text-xs text-amber-700 font-medium">
+                        (সর্বোচ্চ {toBengaliNumber(book.stock)} টি)
+                      </span>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs sm:text-sm font-semibold flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                    <span>দুঃখিত, এই বইটি এই মুহূর্তে স্টকে নেই। নতুন কপি আসা মাত্রই পুনরায় ক্রয় করা যাবে।</span>
+                  </div>
+                )}
 
                 {/* Main Action Buttons */}
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
+                    disabled={book.stock <= 0}
                     onClick={() => {
-                      addToCart(book, quantity);
+                      if (book.stock > 0) {
+                        addToCart(book, quantity);
+                      }
                     }}
-                    className="flex-1 min-w-[140px] px-6 py-3 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-extrabold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
+                    className={`flex-1 min-w-[140px] px-6 py-3 rounded-xl font-extrabold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-sm ${
+                      book.stock <= 0
+                        ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-300'
+                        : 'bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 cursor-pointer active:scale-95'
+                    }`}
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>কার্টে যোগ করুন</span>
+                    <span>{book.stock <= 0 ? 'স্টক শেষ' : 'কার্টে যোগ করুন'}</span>
                   </button>
 
                   <button
                     type="button"
+                    disabled={book.stock <= 0}
                     onClick={() => {
-                      onBuyNow(book, quantity);
-                      onClose();
+                      if (book.stock > 0) {
+                        onBuyNow(book, quantity);
+                        onClose();
+                      }
                     }}
-                    className="flex-1 min-w-[140px] px-6 py-3 rounded-xl bg-[#18181B] hover:bg-zinc-800 text-white font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className={`flex-1 min-w-[140px] px-6 py-3 rounded-xl font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 ${
+                      book.stock <= 0
+                        ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                        : 'bg-[#18181B] hover:bg-zinc-800 text-white cursor-pointer active:scale-95'
+                    }`}
                   >
-                    <span>এখনই কিনুন</span>
+                    <span>{book.stock <= 0 ? 'উপলব্ধ নেই' : 'এখনই কিনুন'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
 

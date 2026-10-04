@@ -1,14 +1,18 @@
 export interface Book {
   id: string;
   title: string;
+  title_bn?: string;
   bangla_name?: string;
   english_name?: string;
   author: string;
   publisher: string;
   category: string;
   description: string;
+  description_bn?: string;
   image: string;
   cover_image?: string;
+  banner_image?: string;
+  pdf_url?: string;
   gallery?: string[];
   price: number;
   originalPrice: number;
@@ -27,6 +31,8 @@ export interface Book {
   isNewRelease?: boolean;
   isInternational?: boolean;
   isFeatured?: boolean;
+  featured?: boolean;
+  is_active?: boolean;
   status?: 'published' | 'draft' | 'out_of_stock';
   sectionIds: string[]; // which sections this book belongs to
   created_at?: string;
@@ -105,6 +111,11 @@ export interface OrderDetails {
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   orderNotes?: string;
+  // Steadfast Courier integration fields
+  steadfast_consignment_id?: string | number;
+  steadfast_tracking_code?: string;
+  steadfast_status?: string;
+  steadfast_synced_at?: string;
 }
 
 export type ViewType = 'home' | 'catalog' | 'author' | 'publisher' | 'offers' | 'about' | 'contact';
@@ -113,5 +124,33 @@ export interface SiteSettings {
   id?: string;
   meta_pixel_id: string;
   meta_pixel_enabled: boolean;
+  phone?: string;
+  alt_phone?: string;
+  email?: string;
+  address?: string;
+  support_hours?: string;
+  announcement_badge?: string;
+  announcement_text?: string;
+  about_text?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  whatsapp_number?: string;
+  // Steadfast Courier API settings
+  steadfast_api_key?: string;
+  steadfast_secret_key?: string;
+  steadfast_enabled?: boolean;
+  // Delivery Fee configuration
+  delivery_charge_inside?: number;
+  delivery_charge_outside?: number;
+  free_delivery_threshold?: number;
+  updated_at?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  created_at?: string;
   updated_at?: string;
 }

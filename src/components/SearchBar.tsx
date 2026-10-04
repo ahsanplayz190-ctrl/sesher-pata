@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BOOKS } from '../data/books';
+import { useData } from '../context/DataContext';
 import { Book } from '../types';
 import { formatPrice } from '../utils/formatters';
 import { trackSearch } from '../utils/metaPixel';
@@ -19,6 +19,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onSearchSubmit,
   isMobile = false,
 }) => {
+  const { books = [] } = useData() || {};
+  const activeBooks = Array.isArray(books) ? books : [];
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,15 +28,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   // Filter books in real-time
   const searchResults = query.trim() === ''
     ? []
-    : BOOKS.filter((book) => {
+    : activeBooks.filter((book) => {
         const q = query.toLowerCase().trim();
         return (
-          book.title.toLowerCase().includes(q) ||
-          book.author.toLowerCase().includes(q) ||
-          book.publisher.toLowerCase().includes(q) ||
-          book.category.toLowerCase().includes(q) ||
+          (book.title && book.title.toLowerCase().includes(q)) ||
+          (book.bangla_name && book.bangla_name.toLowerCase().includes(q)) ||
+          (book.english_name && book.english_name.toLowerCase().includes(q)) ||
+          (book.author && book.author.toLowerCase().includes(q)) ||
+          (book.publisher && book.publisher.toLowerCase().includes(q)) ||
+          (book.category && book.category.toLowerCase().includes(q)) ||
           (book.isbn && book.isbn.toLowerCase().includes(q)) ||
-          book.tags.some((t) => t.toLowerCase().includes(q))
+          (Array.isArray(book.tags) && book.tags.some((t) => t.toLowerCase().includes(q)))
         );
       }).slice(0, 8);
 

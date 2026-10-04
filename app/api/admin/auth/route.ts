@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url);
     const action = url.searchParams.get('action');
 
+    const isSecure = url.protocol === 'https:';
+
     // Handle Logout
     if (action === 'logout') {
       const response = NextResponse.json({ success: true, message: 'লগআউট সম্পন্ন হয়েছে' });
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
         path: '/',
         maxAge: 0,
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecure,
         sameSite: 'lax',
       });
       return response;
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
       path: '/',
       maxAge: maxAgeSeconds,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'lax',
     });
 

@@ -8,6 +8,7 @@ import { TopBar } from './TopBar';
 import { Navigation, NAV_ITEMS } from './Navigation';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useData } from '../context/DataContext';
 import { Book } from '../types';
 import { toBengaliNumber, formatPrice } from '../utils/formatters';
 
@@ -33,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const { totalItemsCount, subtotal, setIsCartOpen } = useCart();
   const { wishlist, setIsWishlistOpen } = useWishlist();
+  const { siteSettings } = useData();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -311,8 +313,8 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Bottom info */}
             <div className="p-4 bg-zinc-50 border-t border-zinc-100 text-xs text-zinc-500 space-y-1">
               <p className="font-semibold text-zinc-800">শেষের পাতা কাস্টমার কেয়ার</p>
-              <p>কল করুন: ০১৭০০-০০০০০০</p>
-              <p className="text-[11px] text-zinc-400 pt-1">সকাল ৯টা - রাত ১০টা</p>
+              <p>কল করুন: {siteSettings?.phone || '০১৭০০-০০০০০০'}</p>
+              <p className="text-[11px] text-zinc-400 pt-1">{siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা'}</p>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Search, Package, Truck, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { X, Search, Package, Truck, CheckCircle2, Clock, AlertCircle, ExternalLink } from 'lucide-react';
 import { toBengaliNumber, formatPrice } from '../utils/formatters';
 import { useData } from '../context/DataContext';
 import { OrderDetails } from '../types';
@@ -103,6 +103,24 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
                 <p><span className="text-zinc-500">মোট মূল্য:</span> <strong className="text-amber-700">{formatPrice(matchedOrder.total)}</strong> ({matchedOrder.paymentMethod === 'cod' ? 'ক্যাশ অন ডেলিভারি' : matchedOrder.paymentMethod.toUpperCase()})</p>
                 <p><span className="text-zinc-500">বইসমূহ:</span> {matchedOrder.items.map(i => `${i.book.title} (x${toBengaliNumber(i.quantity)})`).join(', ')}</p>
               </div>
+
+              {matchedOrder.steadfast_tracking_code && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-emerald-700 font-semibold block">স্টেডফাস্ট ট্র্যাকিং কোড:</span>
+                    <span className="font-mono font-bold text-emerald-950">{matchedOrder.steadfast_tracking_code}</span>
+                  </div>
+                  <a
+                    href={`https://steadfast.com.bd/tracking?q=${encodeURIComponent(matchedOrder.steadfast_tracking_code)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <span>লাইভ ট্র্যাক</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
 
               {/* Tracking Milestones based on status */}
               <div className="space-y-3 pl-2 text-xs">

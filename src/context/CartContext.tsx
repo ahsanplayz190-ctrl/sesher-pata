@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Book, CartItem } from '../types';
 import { useToast } from './ToastContext';
+import { useData } from './DataContext';
 import { trackAddToCart } from '../utils/metaPixel';
 
 interface CartContextType {
@@ -20,6 +21,9 @@ interface CartContextType {
   deliveryOption: 'inside_dhaka' | 'outside_dhaka';
   setDeliveryOption: (option: 'inside_dhaka' | 'outside_dhaka') => void;
   deliveryFee: number;
+  insideDhakaFee: number;
+  outsideDhakaFee: number;
+  freeDeliveryThreshold: number;
   grandTotal: number;
   totalItemsCount: number;
   isCartOpen: boolean;
@@ -64,16 +68,30 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [cart, isMounted]);
 
   const addToCart = (book: Book, quantity = 1) => {
+    if (book.stock <= 0) {
+      showToast(`দুঃখিত! "${book.title}" বইটি বর্তমানে স্টকে নেই`, 'error');
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.book.id === book.id);
       if (existing) {
+        const targetQty = existing.quantity + quantity;
+        if (book.stock && targetQty > book.stock) {
+          showToast(`দুঃখিত! স্টকে শুধুমাত্র ${book.stock} টি কপি উপলব্ধ আছে`, 'error');
+          return prev.map((item) =>
+            item.book.id === book.id
+              ? { ...item, quantity: book.stock }
+              : item
+          );
+        }
         return prev.map((item) =>
           item.book.id === book.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: targetQty }
             : item
         );
       }
-      return [...prev, { book, quantity }];
+      return [...prev, { book, quantity: Math.min(quantity, book.stock || 1) }];
     });
 
     showToast(`"${book.title}" বইটি কার্টে যোগ হয়েছে ✓`, 'success');
@@ -93,9 +111,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       removeFromCart(bookId);
       return;
     }
+    const item = cart.find((i) => i.book.id === bookId);
+    let finalQty = quantity;
+    if (item && item.book.stock !== undefined && quantity > item.book.stock) {
+      showToast(`দুঃখিত! স্টকে শুধুমাত্র ${item.book.stock} টি কপি উপলব্ধ আছে`, 'error');
+      finalQty = item.book.stock;
+    }
     setCart((prev) =>
-      prev.map((item) =>
-        item.book.id === bookId ? { ...item, quantity } : item
+      prev.map((it) =>
+        it.book.id === bookId ? { ...it, quantity: finalQty } : it
       )
     );
   };
@@ -128,15 +152,28 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     showToast('কুপন কোড সরানো হয়েছে', 'info');
   };
 
+  const { siteSettings } = useData();
+
+  // Dynamic delivery fees configured by admin
+  const insideDhakaFee = typeof siteSettings?.delivery_charge_inside === 'number'
+    ? siteSettings.delivery_charge_inside
+    : 60;
+  const outsideDhakaFee = typeof siteSettings?.delivery_charge_outside === 'number'
+    ? siteSettings.delivery_charge_outside
+    : 120;
+  const freeDeliveryThreshold = typeof siteSettings?.free_delivery_threshold === 'number'
+    ? siteSettings.free_delivery_threshold
+    : 1500;
+
   // Subtotal calculated with current book price
   const subtotal = cart.reduce((acc, item) => acc + item.book.price * item.quantity, 0);
 
   // Additional coupon discount
   const discountAmount = Math.round((subtotal * couponDiscountPercentage) / 100);
 
-  // Delivery fee: ৳60 inside Dhaka, ৳120 outside Dhaka (free if subtotal > 1500)
-  const isFreeDelivery = subtotal >= 1500;
-  const deliveryFee = cart.length === 0 ? 0 : isFreeDelivery ? 0 : deliveryOption === 'inside_dhaka' ? 60 : 120;
+  // Delivery fee: calculated dynamically based on admin configuration
+  const isFreeDelivery = freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold;
+  const deliveryFee = cart.length === 0 ? 0 : isFreeDelivery ? 0 : deliveryOption === 'inside_dhaka' ? insideDhakaFee : outsideDhakaFee;
 
   const grandTotal = Math.max(0, subtotal - discountAmount + deliveryFee);
   const totalItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -158,6 +195,9 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         deliveryOption,
         setDeliveryOption,
         deliveryFee,
+        insideDhakaFee,
+        outsideDhakaFee,
+        freeDeliveryThreshold,
         grandTotal,
         totalItemsCount,
         isCartOpen,

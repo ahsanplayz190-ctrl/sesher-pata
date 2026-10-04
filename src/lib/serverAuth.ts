@@ -1,25 +1,37 @@
+import 'server-only';
 import crypto from 'crypto';
+import { serverConfig } from '../server/config';
 
-// Secret key for HMAC token signing (server-side only)
-const SESSION_SECRET =
-  process.env.ADMIN_SESSION_SECRET ||
-  'shesher_pata_admin_secret_key_2026_super_secure_auth';
-
-// Server-side admin credentials (never exposed to client browser)
-const SERVER_ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'seshadmin';
-const SERVER_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sesherpata12@#';
+if (typeof window !== 'undefined') {
+  throw new Error('SECURITY VIOLATION: serverAuth can only be executed in a server environment.');
+}
 
 export const ADMIN_COOKIE_NAME = 'seshadmin_token';
 
 /**
- * Verify admin username and password using constant-time string comparison
+ * Verify admin username/email and password using constant-time string comparison
  * to prevent timing attacks.
  */
-export function verifyCredentials(username: string, password: string): boolean {
-  if (!username || !password) return false;
+export function verifyCredentials(identifier: string, password: string): boolean {
+  if (!identifier || !password) return false;
 
-  const userMatch = timingSafeEqual(username.trim(), SERVER_ADMIN_USERNAME);
-  const passMatch = timingSafeEqual(password, SERVER_ADMIN_PASSWORD);
+  const { username, email, password: expectedPassword } = serverConfig.admin;
+
+  if (!username || !expectedPassword) {
+    console.error('[Admin Auth Error] Admin credentials are not configured in serverConfig');
+    return false;
+  }
+
+  const cleanInput = identifier.trim().toLowerCase();
+  const cleanUsername = username.trim().toLowerCase();
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Identifier can be either the admin username or admin email
+  const userMatch =
+    timingSafeEqual(cleanInput, cleanUsername) ||
+    (Boolean(cleanEmail) && timingSafeEqual(cleanInput, cleanEmail));
+
+  const passMatch = timingSafeEqual(password, expectedPassword);
 
   return userMatch && passMatch;
 }
@@ -43,10 +55,14 @@ function timingSafeEqual(a: string, b: string): boolean {
  * Payload: { role: 'admin', exp: Date.now() + maxAge }
  */
 export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
+  const secret = serverConfig.admin.sessionSecret;
+  if (!secret) {
+    throw new Error('Server configuration is incomplete. (Admin session secret missing)');
+  }
   const expiresAt = Date.now() + maxAgeSeconds * 1000;
   const payload = Buffer.from(JSON.stringify({ role: 'admin', exp: expiresAt })).toString('base64url');
   const signature = crypto
-    .createHmac('sha256', SESSION_SECRET)
+    .createHmac('sha256', secret)
     .update(payload)
     .digest('base64url');
 
@@ -58,13 +74,18 @@ export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
  */
 export function verifySessionToken(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
+  const secret = serverConfig.admin.sessionSecret;
+  if (!secret) {
+    console.error('[Admin Auth Error] Admin session secret is missing in serverConfig');
+    return false;
+  }
 
   const parts = token.split('.');
   if (parts.length !== 2) return false;
 
   const [payload, signature] = parts;
   const expectedSig = crypto
-    .createHmac('sha256', SESSION_SECRET)
+    .createHmac('sha256', secret)
     .update(payload)
     .digest('base64url');
 

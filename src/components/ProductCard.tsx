@@ -25,8 +25,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <div className="group relative bg-[#FDFBF7] rounded-2xl border border-[#EBDCB9] hover:border-[#E5A913] shadow-xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden select-none font-['Noto_Sans_Bengali'] h-full">
-      {/* Scalloped Red 40% OFF Starburst Seal Badge */}
-      {book.discount > 0 && (
+      {/* Scalloped Red 40% OFF Starburst Seal Badge OR Out of Stock Badge */}
+      {book.stock <= 0 ? (
+        <div className="absolute top-2 left-2 z-10 bg-rose-600/95 text-white font-extrabold text-[10px] sm:text-[11px] px-2 py-0.5 rounded shadow-sm">
+          স্টক শেষ
+        </div>
+      ) : book.discount > 0 ? (
         <div className="absolute top-2 left-2 z-10 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center filter drop-shadow-xs">
           <svg
             viewBox="0 0 100 100"
@@ -39,7 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <span className="text-[7px] font-black uppercase tracking-tighter mt-0.5">OFF</span>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Top Right Wishlist Heart Toggle */}
       <button
@@ -65,7 +69,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={book.image}
           alt={book.title}
-          className="h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
+          className={`h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md ${
+            book.stock <= 0 ? 'opacity-70 grayscale-[25%]' : ''
+          }`}
           loading="lazy"
         />
 
@@ -123,15 +129,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* 'যোগ করুন' button with Cart Icon and Golden Border */}
           <button
             type="button"
+            disabled={book.stock <= 0}
             onClick={(e) => {
               e.stopPropagation();
-              addToCart(book, 1);
+              if (book.stock > 0) {
+                addToCart(book, 1);
+              }
             }}
-            className="px-3 py-1.5 rounded-xl border-2 border-[#E5C365] bg-[#FFFDF5] hover:bg-[#E5A913] text-[#2D281E] hover:text-zinc-950 font-bold text-xs sm:text-[13px] transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
-            title="কার্টে যোগ করুন"
+            className={`px-3 py-1.5 rounded-xl border text-xs sm:text-[13px] font-bold transition-all flex items-center gap-1.5 shadow-2xs shrink-0 ${
+              book.stock <= 0
+                ? 'border-zinc-200 bg-zinc-100 text-zinc-400 cursor-not-allowed'
+                : 'border-[#E5C365] bg-[#FFFDF5] hover:bg-[#E5A913] text-[#2D281E] hover:text-zinc-950 cursor-pointer active:scale-95'
+            }`}
+            title={book.stock <= 0 ? 'স্টক শেষ' : 'কার্টে যোগ করুন'}
           >
             <ShoppingCart className="w-3.5 h-3.5 stroke-[2.2]" />
-            <span>যোগ করুন</span>
+            <span>{book.stock <= 0 ? 'স্টক শেষ' : 'যোগ করুন'}</span>
           </button>
         </div>
       </div>

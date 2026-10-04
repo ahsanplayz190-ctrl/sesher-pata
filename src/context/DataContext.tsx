@@ -6,6 +6,7 @@ import { BOOKS as INITIAL_BOOKS } from '../data/books';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../data/categories';
 import { INITIAL_BANNERS } from '../data/banners';
 import { settingsService, DEFAULT_SETTINGS } from '../services/settingsService';
+import { bookService, BOOKS_CHANGED_EVENT } from '../services/bookService';
 
 const INITIAL_AUTHORS: Author[] = [
   {
@@ -177,6 +178,30 @@ const INITIAL_ORDERS: OrderDetails[] = [
     status: 'pending',
     orderNotes: 'বিকাশ ট্রানজ্যাকশন আইডি: 9K8X7L2M',
   },
+  {
+    orderId: 'SP-2026-95810',
+    date: '২০২৬-০৩-১৬',
+    customerName: 'রাকিবুল হাসান',
+    phone: '01755667788',
+    email: 'rakibul@example.com',
+    address: 'বাড়ি ৭, রোড ৪, উত্তরা সেক্টর ৩',
+    district: 'ঢাকা',
+    thana: 'উত্তরা',
+    postalCode: '1230',
+    deliveryOption: 'inside_dhaka',
+    deliveryFee: 60,
+    paymentMethod: 'cod',
+    items: [
+      { book: INITIAL_BOOKS[0], quantity: 1 },
+      { book: INITIAL_BOOKS[1] || INITIAL_BOOKS[0], quantity: 1 },
+    ],
+    subtotal: 990,
+    discountAmount: 50,
+    couponCode: 'SHESHER10',
+    total: 1000,
+    status: 'confirmed',
+    orderNotes: 'আজকের জরুরি ডেলিভারি প্রয়োজন।',
+  },
 ];
 
 interface DataContextType {
@@ -188,9 +213,11 @@ interface DataContextType {
   orders: OrderDetails[];
   
   // Book Actions
-  addBook: (book: Omit<Book, 'id'> & { id?: string }) => Book;
-  updateBook: (id: string, updated: Partial<Book>) => void;
-  deleteBook: (id: string) => void;
+  isBooksLoading: boolean;
+  addBook: (book: Omit<Book, 'id'> & { id?: string }) => Promise<Book>;
+  updateBook: (id: string, updated: Partial<Book>) => Promise<Book>;
+  deleteBook: (id: string) => Promise<boolean>;
+  syncBooksWithSupabase: () => Promise<{ success: boolean; count?: number; message: string }>;
 
   // Banner Actions
   addBanner: (banner: Omit<Banner, 'id'> & { id?: string }) => Banner;
@@ -214,6 +241,7 @@ interface DataContextType {
 
   // Order Actions
   addOrder: (order: OrderDetails) => void;
+  updateOrder: (orderId: string, updated: Partial<OrderDetails>) => void;
   updateOrderStatus: (orderId: string, status: OrderDetails['status']) => void;
   deleteOrder: (orderId: string) => void;
 
@@ -239,7 +267,8 @@ const STORAGE_KEYS = {
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [books, setBooks] = useState<Book[]>(INITIAL_BOOKS);
+  const [books, setBooks] = useState<Book[]>(() => bookService.getCachedBooks());
+  const [isBooksLoading, setIsBooksLoading] = useState<boolean>(true);
   const [banners, setBanners] = useState<Banner[]>(INITIAL_BANNERS);
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [authors, setAuthors] = useState<Author[]>(INITIAL_AUTHORS);
@@ -248,13 +277,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from LocalStorage on mount
+  // Load from LocalStorage and Supabase on mount
   useEffect(() => {
     try {
-      const storedBooks = localStorage.getItem(STORAGE_KEYS.BOOKS);
-      if (storedBooks) {
-        setBooks(JSON.parse(storedBooks));
+      // 1. Load cached books first for instant render
+      const cached = bookService.getCachedBooks();
+      if (cached && cached.length > 0) {
+        setBooks(cached);
       }
+
+      // 2. Fetch fresh books from central database
+      setIsBooksLoading(true);
+      bookService.fetchBooks()
+        .then((remoteBooks) => {
+          if (Array.isArray(remoteBooks)) {
+            setBooks(remoteBooks);
+          }
+        })
+        .finally(() => {
+          setIsBooksLoading(false);
+        });
 
       const storedBanners = localStorage.getItem(STORAGE_KEYS.BANNERS);
       if (storedBanners) {
@@ -296,26 +338,60 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoaded(true);
     }
 
+    // 3. Supabase Realtime synchronization for books table
+    const unsubscribeBooksRealtime = bookService.subscribeToRealtime({
+      onInsert: (newBook) => {
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === newBook.id)) {
+            return prev.map((b) => (b.id === newBook.id ? newBook : b));
+          }
+          const updated = [newBook, ...prev];
+          bookService.saveToCache(updated);
+          return updated;
+        });
+      },
+      onUpdate: (updatedBook) => {
+        setBooks((prev) => {
+          const updated = prev.map((b) => (b.id === updatedBook.id ? { ...b, ...updatedBook } : b));
+          bookService.saveToCache(updated);
+          return updated;
+        });
+      },
+      onDelete: (deletedId) => {
+        setBooks((prev) => {
+          const updated = prev.filter((b) => b.id !== deletedId);
+          bookService.saveToCache(updated);
+          return updated;
+        });
+      },
+    });
+
+    // 4. Multi-tab / window sync for books
+    const handleBooksChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<Book[]>;
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setBooks(customEvent.detail);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(BOOKS_CHANGED_EVENT, handleBooksChanged);
+    }
+
     // Subscribe to settings changes across components or tabs
-    const unsubscribe = settingsService.subscribe((updatedSettings) => {
+    const unsubscribeSettings = settingsService.subscribe((updatedSettings) => {
       setSiteSettings(updatedSettings);
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeSettings();
+      unsubscribeBooksRealtime();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(BOOKS_CHANGED_EVENT, handleBooksChanged);
+      }
     };
   }, []);
 
-  // Save changes to LocalStorage
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(books));
-    } catch (e) {
-      console.error('Failed to save books to localStorage:', e);
-    }
-  }, [books, isLoaded]);
-
+  // Save other changes to LocalStorage
   useEffect(() => {
     if (!isLoaded) return;
     try {
@@ -361,56 +437,113 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [orders, isLoaded]);
 
-  // Book Methods
-  const addBook = (bookData: Omit<Book, 'id'> & { id?: string }): Book => {
-    const banglaName = bookData.bangla_name || bookData.title || '';
-    const englishName = bookData.english_name || '';
+  // Book Methods (Synchronized with Supabase as single source of truth)
+  const addBook = async (bookData: Omit<Book, 'id'> & { id?: string }): Promise<Book> => {
+    const banglaName = (bookData.bangla_name || bookData.title || '').trim();
+    const englishName = (bookData.english_name || '').trim();
+    const title = banglaName || englishName || bookData.title || '';
+
     const newBook: Book = {
       ...bookData,
       id: bookData.id || `book-sp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      title: banglaName || englishName || bookData.title || '',
+      title,
+      title_bn: banglaName,
       bangla_name: banglaName,
       english_name: englishName,
       image: bookData.image || bookData.cover_image || '',
       cover_image: bookData.cover_image || bookData.image || '',
+      price: Number(bookData.price) || 0,
+      originalPrice: Number(bookData.originalPrice) || Number(bookData.price) || 0,
+      discount: Number(bookData.discount) || 0,
+      stock: Number(bookData.stock) || 0,
+      rating: bookData.rating !== undefined ? Number(bookData.rating) : 5.0,
+      reviewCount: bookData.reviewCount !== undefined ? Number(bookData.reviewCount) : 1,
+      tags: Array.isArray(bookData.tags) ? bookData.tags : [],
+      sectionIds: Array.isArray(bookData.sectionIds) ? bookData.sectionIds : ['new-arrivals'],
       created_at: bookData.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setBooks((prev) => [newBook, ...prev]);
+
+    // Save to central database first
+    const savedBook = await bookService.createBook(newBook);
+
+    // Update state and cache
+    setBooks((prev) => {
+      const next = [savedBook, ...prev.filter((b) => b.id !== savedBook.id)];
+      bookService.saveToCache(next);
+      return next;
+    });
 
     // Also update category bookCount
     setCategories((prev) =>
       prev.map((cat) =>
-        cat.name === newBook.category || cat.englishName === newBook.category
+        cat.name === savedBook.category || cat.englishName === savedBook.category
           ? { ...cat, bookCount: cat.bookCount + 1 }
           : cat
       )
     );
 
-    return newBook;
+    return savedBook;
   };
 
-  const updateBook = (id: string, updated: Partial<Book>) => {
-    setBooks((prev) =>
-      prev.map((b) => {
-        if (b.id !== id) return b;
-        const banglaName = updated.bangla_name !== undefined ? updated.bangla_name : b.bangla_name;
-        const englishName = updated.english_name !== undefined ? updated.english_name : b.english_name;
-        const title = updated.title !== undefined ? updated.title : (banglaName || englishName || b.title);
+  const updateBook = async (id: string, updated: Partial<Book>): Promise<Book> => {
+    const savedBook = await bookService.updateBook(id, updated);
+
+    setBooks((prev) => {
+      const next = prev.map((b) => (b.id === id ? { ...b, ...savedBook } : b));
+      bookService.saveToCache(next);
+      return next;
+    });
+
+    return savedBook;
+  };
+
+  const deleteBook = async (id: string): Promise<boolean> => {
+    await bookService.deleteBook(id);
+
+    setBooks((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      bookService.saveToCache(next);
+      return next;
+    });
+
+    return true;
+  };
+
+  const syncBooksWithSupabase = async (): Promise<{ success: boolean; count?: number; message: string }> => {
+    try {
+      // Fetch fresh live books from the central Supabase database
+      const freshBooks = await bookService.fetchBooks();
+      if (Array.isArray(freshBooks)) {
+        setBooks(freshBooks);
+        bookService.saveToCache(freshBooks);
         return {
-          ...b,
-          ...updated,
-          title,
-          bangla_name: banglaName,
-          english_name: englishName,
-          updated_at: new Date().toISOString(),
+          success: true,
+          count: freshBooks.length,
+          message: `সেন্ট্রাল ডাটাবেজের সাথে সফলভাবে সিঙ্ক ও রিফ্রেশ হয়েছে (মোট ${freshBooks.length}টি বই লাইভ)`,
         };
-      })
-    );
+      }
+      return { success: true, count: 0, message: 'ডাটাবেজ সিঙ্ক সম্পন্ন হয়েছে' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'সিঙ্ক ব্যর্থ হয়েছে' };
+    }
   };
 
-  const deleteBook = (id: string) => {
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+  const resetBooksToFactoryDefault = async (): Promise<{ success: boolean; count?: number; message: string }> => {
+    try {
+      const res = await fetch('/api/admin/books/seed', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'ফ্যাক্টরি রিস্টোর ব্যর্থ হয়েছে');
+      }
+      const freshBooks = await bookService.fetchBooks();
+      if (Array.isArray(freshBooks)) {
+        setBooks(freshBooks);
+      }
+      return { success: true, count: data.count, message: data.message };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'ফ্যাক্টরি রিস্টোর ব্যর্থ হয়েছে' };
+    }
   };
 
   // Banner Methods
@@ -509,6 +642,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setOrders((prev) => [newOrder, ...prev]);
   };
 
+  const updateOrder = (orderId: string, updated: Partial<OrderDetails>) => {
+    setOrders((prev) =>
+      prev.map((ord) => (ord.orderId === orderId ? { ...ord, ...updated } : ord))
+    );
+  };
+
   const updateOrderStatus = (orderId: string, status: OrderDetails['status']) => {
     setOrders((prev) =>
       prev.map((ord) => (ord.orderId === orderId ? { ...ord, status } : ord))
@@ -584,6 +723,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider
       value={{
         books,
+        isBooksLoading,
         banners,
         categories,
         authors,
@@ -592,6 +732,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addBook,
         updateBook,
         deleteBook,
+        syncBooksWithSupabase,
         addBanner,
         updateBanner,
         deleteBanner,
@@ -605,6 +746,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updatePublisher,
         deletePublisher,
         addOrder,
+        updateOrder,
         updateOrderStatus,
         deleteOrder,
         siteSettings,

@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '../src/context/ToastContext';
 import { useCart } from '../src/context/CartContext';
 import { useWishlist } from '../src/context/WishlistContext';
 import { useData } from '../src/context/DataContext';
-import { useLanguage } from '../src/context/LanguageContext';
 import { Book } from '../src/types';
 import { trackSearch } from '../src/utils/metaPixel';
 
@@ -16,12 +15,6 @@ import { CatalogView } from '../src/components/CatalogView';
 import { AuthorsView } from '../src/components/AuthorsView';
 import { Footer } from '../src/components/Footer';
 import { MobileBottomNav } from '../src/components/MobileBottomNav';
-
-// English UI Components (BookOwls Inspired)
-import { EnglishHeader } from '../src/components/english/EnglishHeader';
-import { EnglishHome } from '../src/components/english/EnglishHome';
-import { EnglishCatalogView } from '../src/components/english/EnglishCatalogView';
-import { EnglishFooter } from '../src/components/english/EnglishFooter';
 
 // Shared Drawers and Modals
 import { ProductDetailsModal } from '../src/components/ProductDetailsModal';
@@ -36,8 +29,7 @@ export default function HomePage() {
   const { showToast } = useToast();
   const { addToCart } = useCart();
   const { setIsWishlistOpen } = useWishlist();
-  const { books } = useData();
-  const { language } = useLanguage();
+  const { books, siteSettings } = useData();
 
   // Navigation state
   const [currentNav, setCurrentNav] = useState<string>('home');
@@ -117,92 +109,50 @@ export default function HomePage() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col ${language === 'en' ? 'bg-[#12110e] text-zinc-100' : 'bg-[#FEFDF9] text-zinc-900'} selection:bg-amber-400 selection:text-zinc-950`}>
-      {/* Dynamic Header based on active language */}
-      {language === 'bn' ? (
-        <Header
-          currentNav={currentNav}
-          onNavigate={handleNavClick}
-          onSearchSubmit={handleSearchSubmit}
-          onSelectBook={(book) => setSelectedBookForDetails(book)}
-          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-          onOpenAccount={() => setIsAccountOpen(true)}
-        />
-      ) : (
-        <EnglishHeader
-          currentNav={currentNav}
-          onNavigate={handleNavClick}
-          onSearchSubmit={handleSearchSubmit}
-          onSelectBook={(book) => setSelectedBookForDetails(book)}
-          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-          onOpenAccount={() => setIsAccountOpen(true)}
-        />
-      )}
+    <div className="min-h-screen flex flex-col bg-[#FEFDF9] text-zinc-900 selection:bg-amber-400 selection:text-zinc-950 font-['Noto_Sans_Bengali']">
+      {/* Header */}
+      <Header
+        currentNav={currentNav}
+        onNavigate={handleNavClick}
+        onSearchSubmit={handleSearchSubmit}
+        onSelectBook={(book) => setSelectedBookForDetails(book)}
+        onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+        onOpenAccount={() => setIsAccountOpen(true)}
+      />
 
       {/* Main Content Area */}
-      <main className={`flex-1 ${language === 'bn' ? 'pb-16 lg:pb-0 font-[\'Noto_Sans_Bengali\']' : 'pb-12'}`}>
+      <main className="flex-1 pb-16 lg:pb-0">
         {/* Home View */}
         {currentNav === 'home' && (
-          language === 'bn' ? (
-            <BanglaHome
-              books={books}
-              catalogCategory={catalogCategory}
-              onSelectCategory={handleSelectCategory}
-              onViewAllSection={handleViewAllSection}
-              onOpenDetails={(book) => setSelectedBookForDetails(book)}
-              onQuickView={(book) => setSelectedBookForQuickView(book)}
-              onBuyNow={handleBuyNow}
-              onExploreClick={() => {
-                setCurrentNav('books');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          ) : (
-            <EnglishHome
-              books={books}
-              catalogCategory={catalogCategory}
-              onSelectCategory={handleSelectCategory}
-              onViewAllSection={handleViewAllSection}
-              onOpenDetails={(book) => setSelectedBookForDetails(book)}
-              onQuickView={(book) => setSelectedBookForQuickView(book)}
-              onBuyNow={handleBuyNow}
-              onExploreClick={() => {
-                setCurrentNav('books');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          )
+          <BanglaHome
+            books={books}
+            catalogCategory={catalogCategory}
+            onSelectCategory={handleSelectCategory}
+            onViewAllSection={handleViewAllSection}
+            onOpenDetails={(book) => setSelectedBookForDetails(book)}
+            onQuickView={(book) => setSelectedBookForQuickView(book)}
+            onBuyNow={handleBuyNow}
+            onExploreClick={() => {
+              setCurrentNav('books');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         )}
 
         {/* Books & Catalog View */}
         {(currentNav === 'books' || currentNav === 'publishers' || currentNav === 'packages' || currentNav === 'stationery') && (
-          language === 'bn' ? (
-            <CatalogView
-              books={books}
-              initialCategory={catalogCategory}
-              initialSearch={catalogSearch}
-              onOpenDetails={(book) => setSelectedBookForDetails(book)}
-              onQuickView={(book) => setSelectedBookForQuickView(book)}
-              onResetToHome={() => {
-                setCurrentNav('home');
-                setCatalogCategory('all');
-                setCatalogSearch('');
-              }}
-            />
-          ) : (
-            <EnglishCatalogView
-              books={books}
-              initialCategory={catalogCategory}
-              initialSearch={catalogSearch}
-              onOpenDetails={(book) => setSelectedBookForDetails(book)}
-              onQuickView={(book) => setSelectedBookForQuickView(book)}
-              onResetToHome={() => {
-                setCurrentNav('home');
-                setCatalogCategory('all');
-                setCatalogSearch('');
-              }}
-            />
-          )
+          <CatalogView
+            books={books}
+            initialCategory={catalogCategory}
+            initialSearch={catalogSearch}
+            onOpenDetails={(book) => setSelectedBookForDetails(book)}
+            onQuickView={(book) => setSelectedBookForQuickView(book)}
+            onResetToHome={() => {
+              setCurrentNav('home');
+              setCatalogCategory('all');
+              setCatalogSearch('');
+            }}
+          />
         )}
 
         {/* Authors View */}
@@ -218,46 +168,36 @@ export default function HomePage() {
         {/* About / Contact / Offers static views */}
         {(currentNav === 'about' || currentNav === 'contact' || currentNav === 'offers') && (
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
-            <div className={`p-8 rounded-3xl border shadow-xs space-y-4 ${language === 'en' ? 'bg-[#1a1712] border-[#2e271c] text-zinc-100' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+            <div className="p-8 rounded-3xl border border-zinc-200 bg-white text-zinc-900 shadow-xs space-y-4">
               <h1 className="text-2xl sm:text-3xl font-black">
-                {language === 'bn'
-                  ? currentNav === 'about'
-                    ? 'আমাদের সম্পর্কে — শেষের পাতা'
-                    : currentNav === 'contact'
-                    ? 'যোগাযোগ ও সহায়তা — শেষের পাতা'
-                    : 'চলমান অফার — শেষের পাতা'
-                  : currentNav === 'about'
-                  ? 'About Us — Shesher Pata'
+                {currentNav === 'about'
+                  ? 'আমাদের সম্পর্কে — শেষের পাতা'
                   : currentNav === 'contact'
-                  ? 'Contact & Help — Shesher Pata'
-                  : 'Active Offers & Discounts — Shesher Pata'}
+                  ? 'যোগাযোগ ও সহায়তা — শেষের পাতা'
+                  : 'চলমান অফার — শেষের পাতা'}
               </h1>
               <div className="w-12 h-1 bg-[#F59E0B] rounded-full" />
 
               {currentNav === 'offers' ? (
                 <div className="space-y-4">
-                  <div className={`p-5 rounded-2xl border space-y-2 ${language === 'en' ? 'bg-[#252016] border-[#443820] text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                    <h3 className="font-bold text-lg text-amber-400">
-                      {language === 'bn' ? '🎉 বইমেলা বিশেষ কুপন: SHESHER10' : '🎉 Spring Book Fair Code: SHESHER10'}
+                  <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 space-y-2">
+                    <h3 className="font-bold text-lg text-amber-900">
+                      🎉 বইমেলা বিশেষ কুপন: SHESHER10
                     </h3>
                     <p className="text-sm">
-                      {language === 'bn'
-                        ? 'যেকোনো ৩টি বইয়ের সাথে পান ফ্রি হোম ডেলিভারি এবং ফ্ল্যাট ১০% ডিসকাউন্ট!'
-                        : 'Enjoy free nationwide home delivery and a flat 10% discount on 3 or more books!'}
+                      যেকোনো ৩টি বইয়ের সাথে পান ফ্রি হোম ডেলিভারি এবং ফ্ল্যাট ১০% ডিসকাউন্ট!
                     </p>
                   </div>
                 </div>
               ) : (
                 <>
-                  <p className="text-sm sm:text-base leading-relaxed opacity-90">
-                    {language === 'bn'
-                      ? '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।'
-                      : 'Shesher Pata is more than just an online bookstore; it is a peaceful haven for every book lover. We believe that the right book at the right time can change a person’s world.'}
+                  <p className="text-sm sm:text-base leading-relaxed text-zinc-700">
+                    {siteSettings?.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।'}
                   </p>
-                  <div className={`p-4 border rounded-2xl text-xs space-y-1 ${language === 'en' ? 'bg-[#221e17] border-[#382f1f] text-zinc-300' : 'bg-[#FAF8F4] border-amber-200 text-zinc-700'}`}>
-                    <p><strong>{language === 'bn' ? 'ঠিকানা:' : 'Address:'}</strong> Katabon Book Market, New Elephant Road, Dhaka-1205</p>
-                    <p><strong>{language === 'bn' ? 'হেল্পলাইন:' : 'Hotline:'}</strong> +880 1700-000000 (9 AM - 10 PM)</p>
-                    <p><strong>{language === 'bn' ? 'ইমেইল:' : 'Email:'}</strong> support@shesherpata.com</p>
+                  <div className="p-4 border border-amber-200 rounded-2xl text-xs space-y-1 bg-[#FAF8F4] text-zinc-700">
+                    <p><strong>ঠিকানা:</strong> {siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫'}</p>
+                    <p><strong>হেল্পলাইন:</strong> {siteSettings?.phone || '০১৭০০-০০০০০০'} ({siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা'})</p>
+                    <p><strong>ইমেইল:</strong> {siteSettings?.email || 'support@shesherpata.com'}</p>
                   </div>
                 </>
               )}
@@ -266,41 +206,29 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* Dynamic Footer based on active language */}
-      {language === 'bn' ? (
-        <>
-          <Footer
-            onNavigate={(navId) => {
-              setCurrentNav(navId);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-          />
-          <MobileBottomNav
-            currentNav={currentNav}
-            onNavigate={(navId) => {
-              if (navId === 'categories') {
-                setCurrentNav('books');
-                setCatalogCategory('all');
-              } else {
-                setCurrentNav(navId);
-              }
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenAccount={() => setIsAccountOpen(true)}
-          />
-        </>
-      ) : (
-        <EnglishFooter
-          onNavigate={(navId) => {
+      {/* Footer */}
+      <Footer
+        onNavigate={(navId) => {
+          setCurrentNav(navId);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
+      />
+      <MobileBottomNav
+        currentNav={currentNav}
+        onNavigate={(navId) => {
+          if (navId === 'categories') {
+            setCurrentNav('books');
+            setCatalogCategory('all');
+          } else {
             setCurrentNav(navId);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-        />
-      )}
+          }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenAccount={() => setIsAccountOpen(true)}
+      />
 
-      {/* Drawers and Modals (shared inventory and state across both languages) */}
+      {/* Drawers and Modals */}
       <CartDrawer
         onProceedToCheckout={() => setIsCheckoutOpen(true)}
         onExploreBooks={() => {
@@ -343,12 +271,7 @@ export default function HomePage() {
         onClose={() => setIsCheckoutOpen(false)}
         onOrderSuccess={() => {
           setIsCheckoutOpen(false);
-          showToast(
-            language === 'bn'
-              ? 'ধন্যবাদ! আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।'
-              : 'Thank you! Your order has been placed successfully.',
-            'success'
-          );
+          showToast('ধন্যবাদ! আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।', 'success');
         }}
       />
 

@@ -84,12 +84,32 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
               {book.description}
             </p>
 
-            {/* Price */}
-            <div className="flex items-baseline gap-2 mb-5">
-              <span className="text-2xl font-black text-zinc-900">{formatPrice(book.price)}</span>
-              {book.originalPrice > book.price && (
-                <span className="text-xs text-zinc-400 line-through">
-                  {formatPrice(book.originalPrice)}
+            {/* Price & Stock */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-zinc-900">{formatPrice(book.price)}</span>
+                {book.originalPrice > book.price && (
+                  <span className="text-xs text-zinc-400 line-through">
+                    {formatPrice(book.originalPrice)}
+                  </span>
+                )}
+              </div>
+
+              {/* Stock Status Badge */}
+              {book.stock <= 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  স্টক শেষ
+                </span>
+              ) : book.stock <= 5 ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  সীমিত স্টক ({toBengaliNumber(book.stock)} টি বাকি)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  ইন স্টক ({toBengaliNumber(book.stock)} টি)
                 </span>
               )}
             </div>
@@ -98,13 +118,20 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
             <div className="flex items-center gap-2.5">
               <button
                 type="button"
+                disabled={book.stock <= 0}
                 onClick={() => {
-                  addToCart(book, 1);
+                  if (book.stock > 0) {
+                    addToCart(book, 1);
+                  }
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 transition-all"
+                className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  book.stock <= 0
+                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-300'
+                    : 'bg-amber-500 hover:bg-amber-600 text-zinc-950 cursor-pointer shadow-xs active:scale-95'
+                }`}
               >
                 <ShoppingBag className="w-4 h-4" />
-                <span>কার্টে যোগ করুন</span>
+                <span>{book.stock <= 0 ? 'স্টক শেষ' : 'কার্টে যোগ করুন'}</span>
               </button>
 
               <button
