@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRequestAuthorized } from '../../../../src/lib/serverAuth';
-import { serverConfig } from '../../../../src/server/config';
 import {
   getSteadfastCredentials,
   verifySteadfastCredentials,
-  saveSteadfastCredentials,
-  disconnectSteadfast,
 } from '../../../../src/lib/steadfast';
 
-const STEADFAST_BASE_URL = serverConfig.steadfast.baseUrl.replace(/\/+$/, '');
+const STEADFAST_BASE_URL = (process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;
 
 function normalizePhoneNumber(phone: string): string {
@@ -166,56 +163,20 @@ export async function POST(request: NextRequest) {
     const action = searchParams.get('action');
     const body = await request.json().catch(() => ({}));
 
-    // Action: Connect Steadfast
+    // Action: Connect Steadfast (Deprecated: credentials are now managed in .env)
     if (action === 'connect' || body.action === 'connect') {
-      const { apiKey, secretKey } = body;
-      if (!apiKey || !secretKey) {
-        return NextResponse.json(
-          { error: 'API Key এবং Secret Key প্রদান করা আবশ্যক।' },
-          { status: 400 }
-        );
-      }
-
-      // Step 1: Verify against Steadfast API before saving
-      const verification = await verifySteadfastCredentials(String(apiKey).trim(), String(secretKey).trim());
-      if (!verification.success) {
-        return NextResponse.json(
-          { success: false, error: verification.error || 'স্টেডফাস্ট ক্রিডেনশিয়ালস সঠিক নয়।' },
-          { status: 400 }
-        );
-      }
-
-      // Step 2: Encrypt and save in Supabase
-      const saveResult = await saveSteadfastCredentials(String(apiKey).trim(), String(secretKey).trim());
-      if (!saveResult.success) {
-        return NextResponse.json(
-          { success: false, error: saveResult.error || 'Steadfast configuration storage is unavailable.' },
-          { status: 500 }
-        );
-      }
-
       return NextResponse.json({
-        success: true,
-        connected: true,
-        balance: verification.balance ?? 0,
-        message: 'স্টেডফাস্ট সফলভাবে কানেক্ট ও এনক্রিপ্ট হয়ে সংরক্ষিত হয়েছে!',
-      });
+        success: false,
+        error: 'স্টেডফাস্ট ক্রিডেনশিয়ালস এখন সরাসরি সার্ভার পরিবেশ ভেরিয়েবল (.env)-এ কনফিগার করা থাকে।',
+      }, { status: 400 });
     }
 
-    // Action: Disconnect Steadfast
+    // Action: Disconnect Steadfast (Deprecated: credentials are now managed in .env)
     if (action === 'disconnect' || body.action === 'disconnect') {
-      const disconnectResult = await disconnectSteadfast();
-      if (!disconnectResult.success) {
-        return NextResponse.json(
-          { success: false, error: disconnectResult.error || 'Steadfast configuration storage is unavailable.' },
-          { status: 500 }
-        );
-      }
       return NextResponse.json({
-        success: true,
-        connected: false,
-        message: 'স্টেডফাস্ট সফলভাবে ডিসকানেক্ট করা হয়েছে।',
-      });
+        success: false,
+        error: 'স্টেডফাস্ট ক্রিডেনশিয়ালস এখন সরাসরি সার্ভার পরিবেশ ভেরিয়েবল (.env)-এ কনফিগার করা থাকে।',
+      }, { status: 400 });
     }
 
     // Action: Create Order / Dispatch

@@ -1,8 +1,7 @@
 import { MetadataRoute } from 'next';
-import { publicConfig } from '../src/config/publicConfig';
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = publicConfig.siteUrl;
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com';
 
   return {
     rules: {

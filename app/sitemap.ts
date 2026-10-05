@@ -1,10 +1,8 @@
 import { MetadataRoute } from 'next';
 import { getServerSupabaseClient } from '../src/lib/serverSupabase';
 import { BOOKS } from '../src/data/books';
-import { publicConfig } from '../src/config/publicConfig';
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = publicConfig.siteUrl;
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com';
 
   let bookIds: string[] = BOOKS.map((b) => b.id);
 

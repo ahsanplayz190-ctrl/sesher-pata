@@ -1,9 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-import { publicConfig } from '../config/publicConfig';
-
-const supabaseUrl = publicConfig.supabase.url;
-const supabaseAnonKey = publicConfig.supabase.anonKey;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 let supabaseInstance: SupabaseClient | null = null;
 

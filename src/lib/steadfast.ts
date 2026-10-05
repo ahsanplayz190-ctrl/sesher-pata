@@ -1,13 +1,10 @@
 import 'server-only';
-import { getServerSupabaseClient } from './serverSupabase';
-import { serverConfig } from '../server/config';
-import { encrypt, decrypt } from './serverCrypto';
 
 if (typeof window !== 'undefined') {
   throw new Error('CRITICAL SECURITY ERROR: src/lib/steadfast.ts can only run in a server environment.');
 }
 
-const STEADFAST_BASE_URL = serverConfig.steadfast.baseUrl.replace(/\/+$/, '');
+const STEADFAST_BASE_URL = (process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface SteadfastCredentials {
@@ -18,47 +15,20 @@ export interface SteadfastCredentials {
 }
 
 /**
- * Load encrypted Steadfast credentials strictly from Supabase public.steadfast_config
- * and decrypt them server-side using AES-256-GCM.
- * Never exposed to client code or API responses.
- * 
- * If Supabase steadfast_config cannot be accessed or does not exist,
- * returns disconnected status without ANY local fallback.
+ * Load Steadfast credentials directly from server-side environment variables (.env).
+ * Server-side only: never exposed to client bundles or API responses.
  */
 export async function getSteadfastCredentials(): Promise<SteadfastCredentials> {
-  const supabase = getServerSupabaseClient();
-  if (!supabase) {
-    return { apiKey: '', secretKey: '', isConnected: false, lastVerifiedAt: null };
-  }
+  const apiKey = (process.env.STEADFAST_API_KEY || '').trim();
+  const secretKey = (process.env.STEADFAST_SECRET_KEY || '').trim();
+  const isConnected = Boolean(apiKey && secretKey);
 
-  try {
-    const { data, error } = await supabase
-      .from('steadfast_config')
-      .select('api_key_encrypted, secret_key_encrypted, is_connected, last_verified_at')
-      .eq('id', 'primary')
-      .maybeSingle();
-
-    if (error) {
-      return { apiKey: '', secretKey: '', isConnected: false, lastVerifiedAt: null };
-    }
-
-    if (data && data.is_connected && data.api_key_encrypted && data.secret_key_encrypted) {
-      const apiKey = decrypt(data.api_key_encrypted);
-      const secretKey = decrypt(data.secret_key_encrypted);
-      if (apiKey && secretKey) {
-        return {
-          apiKey,
-          secretKey,
-          isConnected: true,
-          lastVerifiedAt: data.last_verified_at || null,
-        };
-      }
-    }
-  } catch {
-    return { apiKey: '', secretKey: '', isConnected: false, lastVerifiedAt: null };
-  }
-
-  return { apiKey: '', secretKey: '', isConnected: false, lastVerifiedAt: null };
+  return {
+    apiKey,
+    secretKey,
+    isConnected,
+    lastVerifiedAt: null,
+  };
 }
 
 /**
@@ -116,110 +86,26 @@ export async function verifySteadfastCredentials(
 }
 
 /**
- * Save and encrypt Steadfast credentials strictly in Supabase public.steadfast_config.
- * Enforces AES-256-GCM authenticated encryption.
- * ZERO LOCAL FILES / ZERO VAULT / SINGLE SOURCE OF TRUTH.
+ * Deprecated storage mechanism stub.
+ * Steadfast credentials are now managed via environment variables (.env).
  */
 export async function saveSteadfastCredentials(
-  apiKey: string,
-  secretKey: string
+  _apiKey: string,
+  _secretKey: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = getServerSupabaseClient();
-  if (!supabase) {
-    return {
-      success: false,
-      error: 'Steadfast configuration storage is unavailable. Supabase client is not initialized.',
-    };
-  }
-
-  const encryptedApiKey = encrypt(apiKey.trim());
-  const encryptedSecretKey = encrypt(secretKey.trim());
-  const now = new Date().toISOString();
-
-  try {
-    const { error } = await supabase.from('steadfast_config').upsert({
-      id: 'primary',
-      api_key_encrypted: encryptedApiKey,
-      secret_key_encrypted: encryptedSecretKey,
-      is_connected: true,
-      last_verified_at: now,
-      updated_at: now,
-    });
-
-    if (error) {
-      return {
-        success: false,
-        error: 'Steadfast configuration storage is unavailable. Please run the database migration (supabase_schema.sql) in your Supabase SQL Editor.',
-      };
-    }
-
-    // Sync status with site_settings table if present
-    try {
-      await supabase.from('site_settings').upsert({
-        id: 'default_settings',
-        steadfast_enabled: true,
-        updated_at: now,
-      });
-    } catch {
-      // Non-blocking
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: 'Steadfast configuration storage is unavailable. ' + (err?.message || 'Please check database permissions.'),
-    };
-  }
+  return {
+    success: false,
+    error: 'স্টেডফাস্ট ক্রিডেনশিয়ালস এখন সরাসরি সার্ভার পরিবেশ ভেরিয়েবল (.env)-এ কনফিগার করা থাকে।',
+  };
 }
 
 /**
- * Disconnect and clear Steadfast credentials strictly in Supabase public.steadfast_config.
- * ZERO LOCAL FILES / SINGLE SOURCE OF TRUTH.
+ * Deprecated storage mechanism stub.
+ * Steadfast credentials are now managed via environment variables (.env).
  */
 export async function disconnectSteadfast(): Promise<{ success: boolean; error?: string }> {
-  const supabase = getServerSupabaseClient();
-  if (!supabase) {
-    return {
-      success: false,
-      error: 'Steadfast configuration storage is unavailable. Supabase client is not initialized.',
-    };
-  }
-
-  const now = new Date().toISOString();
-
-  try {
-    const { error } = await supabase.from('steadfast_config').upsert({
-      id: 'primary',
-      api_key_encrypted: '',
-      secret_key_encrypted: '',
-      is_connected: false,
-      last_verified_at: null,
-      updated_at: now,
-    });
-
-    if (error) {
-      return {
-        success: false,
-        error: 'Steadfast configuration storage is unavailable. Please run the database migration (supabase_schema.sql) in your Supabase SQL Editor.',
-      };
-    }
-
-    try {
-      await supabase.from('site_settings').upsert({
-        id: 'default_settings',
-        steadfast_enabled: false,
-        updated_at: now,
-      });
-    } catch {
-      // Non-blocking
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: 'Steadfast configuration storage is unavailable. ' + (err?.message || ''),
-    };
-  }
+  return {
+    success: false,
+    error: 'স্টেডফাস্ট ক্রিডেনশিয়ালস এখন সরাসরি সার্ভার পরিবেশ ভেরিয়েবল (.env)-এ কনফিগার করা থাকে।',
+  };
 }

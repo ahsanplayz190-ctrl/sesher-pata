@@ -961,13 +961,8 @@ function AdminDashboardContent() {
   // -------------------------------------------------------------
   // STEADFAST COURIER INTEGRATION STATE & HANDLERS
   // -------------------------------------------------------------
-  const [steadfastApiKey, setSteadfastApiKey] = useState('');
-  const [steadfastSecretKey, setSteadfastSecretKey] = useState('');
   const [isSteadfastConnected, setIsSteadfastConnected] = useState(false);
   const [steadfastLastVerifiedAt, setSteadfastLastVerifiedAt] = useState<string | null>(null);
-  const [showSteadfastSecret, setShowSteadfastSecret] = useState(false);
-  const [isSteadfastConnecting, setIsSteadfastConnecting] = useState(false);
-  const [isSteadfastDisconnecting, setIsSteadfastDisconnecting] = useState(false);
   const [steadfastBalance, setSteadfastBalance] = useState<number | null>(null);
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
 
@@ -1005,64 +1000,7 @@ function AdminDashboardContent() {
     }
   }, [activeTab]);
 
-  const handleConnectSteadfast = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!steadfastApiKey.trim() || !steadfastSecretKey.trim()) {
-      showNotice('অনুগ্রহ করে API Key এবং Secret Key প্রদান করুন!', 'error');
-      return;
-    }
-    setIsSteadfastConnecting(true);
-    try {
-      const res = await fetch('/api/admin/steadfast/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey: steadfastApiKey.trim(),
-          secretKey: steadfastSecretKey.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setIsSteadfastConnected(true);
-        setSteadfastLastVerifiedAt(new Date().toISOString());
-        if (typeof data.balance === 'number') {
-          setSteadfastBalance(data.balance);
-        }
-        setSteadfastApiKey('');
-        setSteadfastSecretKey('');
-        showNotice(data.message || 'স্টেডফাস্ট সফলভাবে কানেক্ট হয়েছে!');
-      } else {
-        showNotice(data.error || 'স্টেডফাস্ট ক্রিডেনশিয়ালস যাচাই ব্যর্থ হয়েছে!', 'error');
-      }
-    } catch {
-      showNotice('সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি!', 'error');
-    } finally {
-      setIsSteadfastConnecting(false);
-    }
-  };
 
-  const handleDisconnectSteadfast = async () => {
-    if (!confirm('আপনি কি নিশ্চিত যে স্টেডফাস্ট অ্যাকাউন্ট ডিসকানেক্ট করতে চান?')) return;
-    setIsSteadfastDisconnecting(true);
-    try {
-      const res = await fetch('/api/admin/steadfast/disconnect', {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setIsSteadfastConnected(false);
-        setSteadfastLastVerifiedAt(null);
-        setSteadfastBalance(null);
-        showNotice('স্টেডফাস্ট সফলভাবে ডিসকানেক্ট করা হয়েছে!');
-      } else {
-        showNotice(data.error || 'ডিসকানেক্ট করতে সমস্যা হয়েছে!', 'error');
-      }
-    } catch {
-      showNotice('সার্ভার ত্রুটি!', 'error');
-    } finally {
-      setIsSteadfastDisconnecting(false);
-    }
-  };
 
   const handleCheckSteadfastBalance = async () => {
     setIsCheckingBalance(true);
@@ -3224,18 +3162,7 @@ function AdminDashboardContent() {
                     <span>{isCheckingBalance ? 'যাচাই হচ্ছে...' : 'কানেকশন টেস্ট ও ব্যালেন্স'}</span>
                   </button>
 
-                  {isSteadfastConnected && (
-                    <button
-                      type="button"
-                      disabled={isSteadfastDisconnecting}
-                      onClick={handleDisconnectSteadfast}
-                      className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold rounded-2xl text-xs flex items-center gap-1.5 cursor-pointer transition-all border border-rose-200 disabled:opacity-50"
-                      title="স্টেডফাস্ট ডিসকানেক্ট করুন"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>{isSteadfastDisconnecting ? 'ডিসকানেক্ট হচ্ছে...' : 'ডিসকানেক্ট'}</span>
-                    </button>
-                  )}
+
                 </div>
               </div>
 
@@ -3320,76 +3247,60 @@ function AdminDashboardContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-zinc-700">
-                      স্টেডফাস্ট API Key *
-                    </label>
-                    <input
-                      type="text"
-                      value={steadfastApiKey}
-                      onChange={(e) => setSteadfastApiKey(e.target.value)}
-                      placeholder={isSteadfastConnected ? '•••••••••••••••• (সংরক্ষিত আছে, পরিবর্তন করতে নতুন কি দিন)' : 'যেমন: abcdef1234567890...'}
-                      className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs sm:text-sm font-mono transition-all"
-                    />
-                    <p className="text-[11px] text-zinc-500">
-                      আপনার মার্চেন্ট প্যানেলের Settings &gt; API Details থেকে সংগ্রহ করুন
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-zinc-700">
-                      স্টেডফাস্ট Secret Key *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showSteadfastSecret ? 'text' : 'password'}
-                        value={steadfastSecretKey}
-                        onChange={(e) => setSteadfastSecretKey(e.target.value)}
-                        placeholder={isSteadfastConnected ? '••••••••••••••••' : 'যেমন: sec_123456...'}
-                        className="w-full px-4 py-2.5 pr-10 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs sm:text-sm font-mono transition-all"
-                      />
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-zinc-900 text-sm">কনফিগারেশন মাধ্যম:</span>
+                        <span className="font-mono text-xs px-2.5 py-0.5 bg-zinc-200 text-zinc-800 rounded-md font-semibold">
+                          সার্ভার এনভায়রনমেন্ট ভেরিয়েবল (.env)
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500">
+                        নিরাপত্তার স্বার্থে এপিআই কি ও সিক্রেট কি ডাটাবেজ বা ব্রাউজারে সংরক্ষিত হয় না; এগুলো সার্ভার-সাইড এনভায়রনমেন্ট ভেরিয়েবলে সংরক্ষিত থাকে।
+                      </p>
+                    </div>
+                    <div className="shrink-0">
                       <button
                         type="button"
-                        onClick={() => setShowSteadfastSecret(!showSteadfastSecret)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                        onClick={handleCheckSteadfastBalance}
+                        disabled={isCheckingBalance}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-50"
                       >
-                        {showSteadfastSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingBalance ? 'animate-spin' : ''}`} />
+                        <span>{isCheckingBalance ? 'যাচাই হচ্ছে...' : 'কানেকশন টেস্ট ও ব্যালেন্স রিফ্রেশ'}</span>
                       </button>
                     </div>
-                    <p className="text-[11px] text-zinc-500">
-                      এই কি-টি AES-256-GCM এনক্রিপশন সহ ডাটাবেজে নিরাপদ থাকবে
-                    </p>
                   </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 gap-3 border-t border-zinc-100">
-                  <p className="text-xs text-zinc-500">
-                    {isSteadfastConnected
-                      ? '✓ স্টেডফাস্ট অ্যাকাউন্ট সফলভাবে সংযুক্ত। নতুন ক্রিডেনশিয়ালস দিলে কানেক্ট বাটনে ক্লিক করে আপডেট করতে পারেন।'
-                      : 'এপিআই তথ্য প্রদান করে নিচের Connect Steadfast বাটনে ক্লিক করুন।'}
-                  </p>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {isSteadfastConnected && (
-                      <button
-                        type="button"
-                        disabled={isSteadfastDisconnecting}
-                        onClick={handleDisconnectSteadfast}
-                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all border border-rose-200 disabled:opacity-50 shrink-0"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>{isSteadfastDisconnecting ? 'ডিসকানেক্ট হচ্ছে...' : 'Disconnect'}</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={isSteadfastConnecting}
-                      onClick={handleConnectSteadfast}
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-98 disabled:opacity-50 shrink-0"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSteadfastConnecting ? 'animate-spin' : ''}`} />
-                      <span>{isSteadfastConnecting ? 'যাচাই ও কানেক্ট হচ্ছে...' : (isSteadfastConnected ? 'আপডেট করুন (Connect)' : 'Connect Steadfast')}</span>
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-zinc-200/60">
+                    <div className="p-3.5 bg-white rounded-xl border border-zinc-200">
+                      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                        Environment Variable 1
+                      </div>
+                      <div className="font-mono text-xs text-zinc-800 font-semibold flex items-center justify-between">
+                        <span>STEADFAST_API_KEY</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          isSteadfastConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {isSteadfastConnected ? 'কনফিগার করা আছে' : 'অনুপস্থিত'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-white rounded-xl border border-zinc-200">
+                      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                        Environment Variable 2
+                      </div>
+                      <div className="font-mono text-xs text-zinc-800 font-semibold flex items-center justify-between">
+                        <span>STEADFAST_SECRET_KEY</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          isSteadfastConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {isSteadfastConnected ? 'কনফিগার করা আছে' : 'অনুপস্থিত'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3397,7 +3308,7 @@ function AdminDashboardContent() {
                 <div className="p-4 bg-[#FAF8F4] border border-amber-200/80 rounded-2xl text-xs space-y-2">
                   <div className="font-bold text-zinc-900 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-amber-600" />
-                    <span>কীভাবে এপিআই কি পাবেন?</span>
+                    <span>কীভাবে এপিআই কি কনফিগার করবেন?</span>
                   </div>
                   <ol className="list-decimal list-inside space-y-1 text-zinc-600 leading-relaxed">
                     <li>
@@ -3413,8 +3324,12 @@ function AdminDashboardContent() {
                       লগইন করুন।
                     </li>
                     <li>বাম পাশের মেনু থেকে <strong>Settings &gt; API Details</strong> এ যান।</li>
-                    <li>সেখান থেকে <strong>API Key</strong> এবং <strong>Secret Key</strong> কপি করে উপরের ফিল্ডে বসান।</li>
-                    <li>এরপর <strong>&quot;Connect Steadfast&quot;</strong> বাটনে ক্লিক করলে তা সরাসরি যাচাই হয়ে এনক্রিপ্ট আকারে সুরক্ষিত হবে।</li>
+                    <li>সেখান থেকে <strong>API Key</strong> এবং <strong>Secret Key</strong> সংগ্রহ করুন।</li>
+                    <li>
+                      আপনার সার্ভারের <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">.env.local</code> ফাইলে বা হোস্টিং ড্যাশবোর্ডে{' '}
+                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">STEADFAST_API_KEY</code> ও{' '}
+                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">STEADFAST_SECRET_KEY</code> যুক্ত করে সার্ভার রিস্টার্ট করুন।
+                    </li>
                   </ol>
                 </div>
               </div>

@@ -1,6 +1,5 @@
 import 'server-only';
 import crypto from 'crypto';
-import { serverConfig } from '../server/config';
 
 if (typeof window !== 'undefined') {
   throw new Error('SECURITY VIOLATION: serverAuth can only be executed in a server environment.');
@@ -15,10 +14,12 @@ export const ADMIN_COOKIE_NAME = 'seshadmin_token';
 export function verifyCredentials(identifier: string, password: string): boolean {
   if (!identifier || !password) return false;
 
-  const { username, email, password: expectedPassword } = serverConfig.admin;
+  const username = process.env.ADMIN_USERNAME || 'seshadmin';
+  const email = process.env.ADMIN_EMAIL || '';
+  const expectedPassword = process.env.ADMIN_PASSWORD;
 
-  if (!username || !expectedPassword) {
-    console.error('[Admin Auth Error] Admin credentials are not configured in serverConfig');
+  if (!expectedPassword) {
+    console.error('[Admin Auth Error] ADMIN_PASSWORD is not configured in environment variables');
     return false;
   }
 
@@ -55,9 +56,9 @@ function timingSafeEqual(a: string, b: string): boolean {
  * Payload: { role: 'admin', exp: Date.now() + maxAge }
  */
 export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
-  const secret = serverConfig.admin.sessionSecret;
+  const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) {
-    throw new Error('Server configuration is incomplete. (Admin session secret missing)');
+    throw new Error('Server configuration is incomplete. (ADMIN_SESSION_SECRET is missing in environment variables)');
   }
   const expiresAt = Date.now() + maxAgeSeconds * 1000;
   const payload = Buffer.from(JSON.stringify({ role: 'admin', exp: expiresAt })).toString('base64url');
@@ -74,9 +75,9 @@ export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
  */
 export function verifySessionToken(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
-  const secret = serverConfig.admin.sessionSecret;
+  const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) {
-    console.error('[Admin Auth Error] Admin session secret is missing in serverConfig');
+    console.error('[Admin Auth Error] ADMIN_SESSION_SECRET is missing in environment variables');
     return false;
   }
 
