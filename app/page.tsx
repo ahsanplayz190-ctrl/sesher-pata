@@ -24,17 +24,20 @@ import { WishlistDrawer } from '../src/components/WishlistDrawer';
 import { CheckoutModal } from '../src/components/CheckoutModal';
 import { TrackOrderModal } from '../src/components/TrackOrderModal';
 import { AccountModal } from '../src/components/AccountModal';
+import { NAV_ITEMS } from '../src/components/Navigation';
+import { getCategoryDisplayName, normalizeBengali } from '../src/utils/filterUtils';
 
 export default function HomePage() {
   const { showToast } = useToast();
   const { addToCart } = useCart();
   const { setIsWishlistOpen } = useWishlist();
-  const { books, siteSettings } = useData();
+  const { books, siteSettings, categories } = useData();
 
   // Navigation state
   const [currentNav, setCurrentNav] = useState<string>('home');
   const [catalogCategory, setCatalogCategory] = useState<string>('all');
   const [catalogSearch, setCatalogSearch] = useState<string>('');
+  const [selectedAuthorForView, setSelectedAuthorForView] = useState<string>('');
 
   // Modals & Drawers
   const [selectedBookForDetails, setSelectedBookForDetails] = useState<Book | null>(null);
@@ -45,9 +48,16 @@ export default function HomePage() {
 
   // Handlers
   const handleSelectCategory = (categoryId: string) => {
-    setCatalogCategory(categoryId);
+    const resolvedName = getCategoryDisplayName(categoryId, categories);
+    setCatalogCategory(resolvedName || categoryId);
     setCatalogSearch('');
     setCurrentNav('books');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectAuthor = (authorName: string) => {
+    setSelectedAuthorForView(normalizeBengali(authorName));
+    setCurrentNav('authors');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -62,7 +72,8 @@ export default function HomePage() {
   };
 
   const handleViewAllSection = (categoryId: string) => {
-    setCatalogCategory(categoryId);
+    const resolvedName = getCategoryDisplayName(categoryId, categories);
+    setCatalogCategory(resolvedName || categoryId);
     setCatalogSearch('');
     setCurrentNav('books');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -77,7 +88,12 @@ export default function HomePage() {
 
   // Navigation router handling
   const handleNavClick = (navId: string) => {
-    if (
+    const navItem = NAV_ITEMS.find((item) => item.id === navId);
+    if (navItem?.categoryFilter) {
+      setCatalogCategory(navItem.categoryFilter);
+      setCatalogSearch('');
+      setCurrentNav('books');
+    } else if (
       navId === 'novel' ||
       navId === 'thriller' ||
       navId === 'islamic' ||
@@ -88,11 +104,11 @@ export default function HomePage() {
     ) {
       const categoryMap: Record<string, string> = {
         novel: 'উপন্যাস',
-        thriller: 'গোয়েন্দা ও থ্রিলার',
+        thriller: 'থ্রিলার ও রহস্য',
         islamic: 'ইসলামিক সাহিত্য',
-        children: 'কিশোর সাহিত্য',
+        children: 'শিশু-কিশোর',
         poetry: 'কবিতা',
-        english: 'বিদেশি বই',
+        english: 'ইংরেজি ও অনুবাদ',
         stationery: 'all',
       };
       setCatalogCategory(categoryMap[navId] || 'all');
@@ -103,6 +119,9 @@ export default function HomePage() {
       setCatalogSearch('');
       setCurrentNav('home');
     } else {
+      if (navId === 'authors') {
+        setSelectedAuthorForView('');
+      }
       setCurrentNav(navId);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -159,6 +178,7 @@ export default function HomePage() {
         {currentNav === 'authors' && (
           <AuthorsView
             books={books}
+            initialAuthor={selectedAuthorForView}
             onOpenDetails={(book) => setSelectedBookForDetails(book)}
             onQuickView={(book) => setSelectedBookForQuickView(book)}
             onResetToHome={() => setCurrentNav('home')}

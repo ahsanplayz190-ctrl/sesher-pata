@@ -55,7 +55,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
           {/* Cover */}
           <div className="sm:col-span-5 flex justify-center">
             <div className="w-44 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-zinc-200 bg-zinc-50 relative">
-              <img src={book.image} alt={book.title} className="w-full h-full object-cover" />
+              <img src={book.image || book.cover_image} alt={book.title} className="w-full h-full object-cover" />
               {book.discount > 0 && (
                 <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-0.5 rounded">
                   {toBengaliNumber(book.discount)}% ছাড়

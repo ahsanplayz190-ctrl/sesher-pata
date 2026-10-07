@@ -3,6 +3,9 @@ import { isRequestAuthorized } from '../../../../src/lib/serverAuth';
 import { getServerSupabaseClient } from '../../../../src/lib/serverSupabase';
 import { SiteSettings } from '../../../../src/types';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(request: NextRequest) {
   // 1. Authorization check: Only authenticated admins are allowed
   const authorized = isRequestAuthorized(request);

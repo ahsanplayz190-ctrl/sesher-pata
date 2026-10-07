@@ -4,8 +4,12 @@ import {
   getSteadfastCredentials,
   verifySteadfastCredentials,
 } from '../../../../src/lib/steadfast';
+import { getServerEnv } from '../../../../src/lib/serverEnv';
 
-const STEADFAST_BASE_URL = (process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const STEADFAST_BASE_URL = (getServerEnv().steadfastBaseUrl || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;
 
 function normalizePhoneNumber(phone: string): string {

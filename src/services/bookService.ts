@@ -1,6 +1,7 @@
 import { Book } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BOOKS as INITIAL_BOOKS } from '../data/books';
+import { normalizeBengali } from '../utils/filterUtils';
 
 export const BOOKS_STORAGE_KEY = 'shesher_pata_books_v1';
 export const BOOKS_CHANGED_EVENT = 'shesher_pata_books_changed';
@@ -71,9 +72,9 @@ export function rowToBook(row: any): Book {
     title_bn: banglaName,
     bangla_name: banglaName,
     english_name: englishName,
-    author: row.author || '',
-    publisher: row.publisher || 'বাতিঘর',
-    category: row.category || 'উপন্যাস',
+    author: normalizeBengali(row.author || ''),
+    publisher: normalizeBengali(row.publisher || 'বাতিঘর'),
+    category: normalizeBengali(row.category || 'উপন্যাস'),
     description: row.description || '',
     description_bn: row.description_bn || row.description || '',
     image: row.image || row.cover_image || '',
@@ -110,68 +111,137 @@ export function rowToBook(row: any): Book {
   };
 }
 
+export interface BulkImportResult {
+  success: boolean;
+  total: number;
+  imported: number;
+  updated: number;
+  failed: number;
+  failedRecords: Array<{ index: number; title: string; reason: string }>;
+  message: string;
+  books?: Book[];
+}
+
 /**
- * Convert frontend Book to database row payload.
+ * Convert frontend Book or raw JSON to database row payload.
+ * Handles both camelCase and snake_case properties robustly.
+ * Ensures each created object is strictly independent (no shared image/property references).
  */
-export function bookToRow(book: Partial<Book>): Record<string, any> {
-  const banglaName = book.bangla_name || book.title_bn || book.title || '';
-  const englishName = book.english_name || '';
-  const title = banglaName || englishName || book.title || '';
+export function bookToRow(book: Partial<Book> | Record<string, any>): Record<string, any> {
+  const banglaName = String(book.bangla_name || book.title_bn || book.title || '').trim();
+  const englishName = String(book.english_name || '').trim();
+  const title = banglaName || englishName || String(book.title || '').trim();
 
-  const price = book.price !== undefined ? Number(book.price) : 0;
-  const originalPrice =
-    book.originalPrice !== undefined
-      ? Number(book.originalPrice)
-      : book.old_price !== undefined
-      ? Number(book.old_price)
+  const price = book.price !== undefined && book.price !== null ? Number(book.price) : 0;
+  
+  const rawOriginal =
+    book.originalPrice !== undefined && book.originalPrice !== null
+      ? book.originalPrice
+      : (book as any).original_price !== undefined && (book as any).original_price !== null
+      ? (book as any).original_price
+      : (book as any).old_price !== undefined && (book as any).old_price !== null
+      ? (book as any).old_price
       : price;
+  const originalPrice = Number(rawOriginal) || price;
 
-  const oldPrice =
-    book.old_price !== undefined
-      ? Number(book.old_price)
+  const rawOld =
+    (book as any).old_price !== undefined && (book as any).old_price !== null
+      ? (book as any).old_price
       : originalPrice;
+  const oldPrice = Number(rawOld) || originalPrice;
+
+  // Individual image and cover_image references: each book strictly has its own values
+  const imageVal = typeof book.image === 'string' ? book.image.trim() : '';
+  const coverImageVal = typeof (book as any).cover_image === 'string' ? (book as any).cover_image.trim() : '';
+  const finalImage = imageVal || coverImageVal || '';
+  const finalCoverImage = coverImageVal || imageVal || '';
+
+  // Gallery
+  let galleryArray: string[] = [];
+  if (Array.isArray(book.gallery)) {
+    galleryArray = [...book.gallery];
+  } else if (typeof book.gallery === 'string') {
+    try {
+      const parsed = JSON.parse(book.gallery);
+      if (Array.isArray(parsed)) galleryArray = parsed;
+    } catch {}
+  }
+
+  // Tags
+  let tagsArray: string[] = [];
+  if (Array.isArray(book.tags)) {
+    tagsArray = [...book.tags];
+  } else if (typeof book.tags === 'string') {
+    try {
+      const parsed = JSON.parse(book.tags);
+      tagsArray = Array.isArray(parsed) ? parsed : [book.tags];
+    } catch {
+      tagsArray = book.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+    }
+  }
+
+  // Section IDs
+  let sectionIdsArray: string[] = ['new-arrivals'];
+  const rawSections = book.sectionIds || (book as any).section_ids;
+  if (Array.isArray(rawSections)) {
+    sectionIdsArray = [...rawSections];
+  } else if (typeof rawSections === 'string') {
+    try {
+      const parsed = JSON.parse(rawSections);
+      sectionIdsArray = Array.isArray(parsed) ? parsed : [rawSections];
+    } catch {
+      sectionIdsArray = [rawSections];
+    }
+  }
+
+  const reviewCount =
+    book.reviewCount !== undefined && book.reviewCount !== null
+      ? Number(book.reviewCount)
+      : (book as any).review_count !== undefined && (book as any).review_count !== null
+      ? Number((book as any).review_count)
+      : 0;
 
   const row: Record<string, any> = {
     title,
     title_bn: banglaName,
     bangla_name: banglaName,
     english_name: englishName,
-    author: book.author || '',
-    publisher: book.publisher || 'বাতিঘর',
-    category: book.category || 'উপন্যাস',
-    description: book.description || '',
-    description_bn: book.description_bn || book.description || '',
-    image: book.image || book.cover_image || '',
-    cover_image: book.cover_image || book.image || '',
-    banner_image: book.banner_image || '',
-    pdf_url: book.pdf_url || '',
-    gallery: Array.isArray(book.gallery) ? book.gallery : [],
+    author: normalizeBengali(String(book.author || '')),
+    publisher: normalizeBengali(String(book.publisher || 'বাতিঘর')),
+    category: normalizeBengali(String(book.category || 'উপন্যাস')),
+    description: String(book.description || (book as any).description_bn || ''),
+    description_bn: String((book as any).description_bn || book.description || ''),
+    image: finalImage,
+    cover_image: finalCoverImage,
+    banner_image: String((book as any).banner_image || ''),
+    pdf_url: String((book as any).pdf_url || ''),
+    gallery: galleryArray,
     price,
     original_price: originalPrice,
     old_price: oldPrice,
-    discount: book.discount !== undefined ? Number(book.discount) : 0,
-    rating: book.rating !== undefined ? Number(book.rating) : 5.0,
-    review_count: book.reviewCount !== undefined ? Number(book.reviewCount) : 0,
-    stock: book.stock !== undefined ? Number(book.stock) : 0,
-    isbn: book.isbn || '',
-    pages: book.pages !== undefined ? Number(book.pages) : 0,
-    edition: book.edition || '১ম সংস্করণ',
-    language: book.language || 'বাংলা',
-    tags: Array.isArray(book.tags) ? book.tags : [],
-    is_bestseller: Boolean(book.isBestseller),
-    is_new: Boolean(book.isNew),
-    is_new_release: Boolean(book.isNewRelease),
-    is_featured: Boolean(book.isFeatured ?? book.featured),
-    featured: Boolean(book.featured ?? book.isFeatured),
-    is_international: Boolean(book.isInternational),
+    discount: book.discount !== undefined && book.discount !== null ? Number(book.discount) : 0,
+    rating: book.rating !== undefined && book.rating !== null ? Number(book.rating) : 5.0,
+    review_count: reviewCount,
+    stock: book.stock !== undefined && book.stock !== null ? Math.max(0, Number(book.stock)) : 0,
+    isbn: String(book.isbn || '').trim(),
+    pages: book.pages !== undefined && book.pages !== null ? Number(book.pages) : 0,
+    edition: String(book.edition || '১ম সংস্করণ'),
+    language: String(book.language || 'বাংলা'),
+    tags: tagsArray,
+    is_bestseller: Boolean(book.isBestseller ?? (book as any).is_bestseller),
+    is_new: Boolean(book.isNew ?? (book as any).is_new),
+    is_new_release: Boolean(book.isNewRelease ?? (book as any).is_new_release),
+    is_featured: Boolean(book.isFeatured ?? book.featured ?? (book as any).is_featured),
+    featured: Boolean(book.featured ?? book.isFeatured ?? (book as any).is_featured),
+    is_international: Boolean(book.isInternational ?? (book as any).is_international),
     is_active: book.is_active !== undefined ? Boolean(book.is_active) : true,
     status: book.status || 'published',
-    section_ids: Array.isArray(book.sectionIds) ? book.sectionIds : ['new-arrivals'],
+    section_ids: sectionIdsArray,
     updated_at: new Date().toISOString(),
   };
 
   if (book.id) {
-    row.id = book.id;
+    row.id = String(book.id).trim();
   }
   if (book.created_at) {
     row.created_at = book.created_at;
@@ -190,7 +260,7 @@ export function bookToRowPartial(book: Partial<Book>): Record<string, any> {
   };
 
   if (book.title !== undefined || book.bangla_name !== undefined || book.title_bn !== undefined) {
-    const titleVal = (book.bangla_name || book.title_bn || book.title || '').trim();
+    const titleVal = normalizeBengali((book.bangla_name || book.title_bn || book.title || ''));
     if (titleVal) {
       row.title = titleVal;
       row.title_bn = titleVal;
@@ -198,13 +268,23 @@ export function bookToRowPartial(book: Partial<Book>): Record<string, any> {
     }
   }
   if (book.english_name !== undefined) row.english_name = book.english_name.trim();
-  if (book.author !== undefined) row.author = book.author.trim();
-  if (book.publisher !== undefined) row.publisher = book.publisher.trim();
-  if (book.category !== undefined) row.category = book.category.trim();
+  if (book.author !== undefined) row.author = normalizeBengali(book.author);
+  if (book.publisher !== undefined) row.publisher = normalizeBengali(book.publisher);
+  if (book.category !== undefined) row.category = normalizeBengali(book.category);
   if (book.description !== undefined) row.description = book.description;
   if (book.description_bn !== undefined) row.description_bn = book.description_bn;
-  if (book.image !== undefined) row.image = book.image;
-  if (book.cover_image !== undefined) row.cover_image = book.cover_image;
+  if (book.image !== undefined) {
+    row.image = book.image;
+    if (book.cover_image === undefined) {
+      row.cover_image = book.image;
+    }
+  }
+  if (book.cover_image !== undefined) {
+    row.cover_image = book.cover_image;
+    if (book.image === undefined) {
+      row.image = book.cover_image;
+    }
+  }
   if (book.banner_image !== undefined) row.banner_image = book.banner_image;
   if (book.pdf_url !== undefined) row.pdf_url = book.pdf_url;
   if (book.gallery !== undefined) row.gallery = Array.isArray(book.gallery) ? book.gallery : [];
@@ -358,9 +438,12 @@ export const bookService = {
     const fullBook: Book = {
       ...bookData,
       id,
-      title: bookData.title || bookData.bangla_name || bookData.english_name || '',
-      bangla_name: bookData.bangla_name || bookData.title || '',
+      title: normalizeBengali(bookData.title || bookData.bangla_name || bookData.english_name || ''),
+      bangla_name: normalizeBengali(bookData.bangla_name || bookData.title || ''),
       english_name: bookData.english_name || '',
+      author: normalizeBengali(bookData.author || ''),
+      publisher: normalizeBengali(bookData.publisher || 'বাতিঘর'),
+      category: normalizeBengali(bookData.category || 'উপন্যাস'),
       image: bookData.image || bookData.cover_image || '',
       cover_image: bookData.cover_image || bookData.image || '',
       price: Number(bookData.price) || 0,
@@ -401,10 +484,17 @@ export const bookService = {
    * Update an existing book by ID.
    */
   async updateBook(id: string, updates: Partial<Book>): Promise<Book> {
+    const payload = { ...updates };
+    if (payload.image !== undefined && payload.cover_image === undefined) {
+      payload.cover_image = payload.image;
+    } else if (payload.cover_image !== undefined && payload.image === undefined) {
+      payload.image = payload.cover_image;
+    }
+
     const response = await fetch(`/api/admin/books?id=${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -451,10 +541,17 @@ export const bookService = {
   /**
    * Upload an image file to Supabase Storage bucket ('book-covers' or 'book-banners').
    */
-  async uploadImage(file: File, bucket = 'book-covers'): Promise<string> {
+  async uploadImage(
+    file: File,
+    bucket = 'book-covers',
+    options?: { folder?: string; recordId?: string; type?: 'category' | 'author' | 'book' | 'banner' }
+  ): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bucket', bucket);
+    if (options?.folder) formData.append('folder', options.folder);
+    if (options?.recordId) formData.append('recordId', options.recordId);
+    if (options?.type) formData.append('type', options.type);
 
     const response = await fetch('/api/admin/upload', {
       method: 'POST',
@@ -527,4 +624,31 @@ export const bookService = {
       return () => {};
     }
   },
+  /**
+   * Bulk import or restore books via the secure server API route /api/admin/books/import.
+   * Sends records to server for validation, duplicate resolution, batching and Supabase upsert.
+   */
+  async bulkImportBooks(input: any[] | { books?: any[] } | Record<string, any>): Promise<BulkImportResult> {
+    const payload = Array.isArray(input) ? { books: input } : input;
+
+    const response = await fetch('/api/admin/books/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('অননুমোদিত: বই ইমপোর্ট করার জন্য অ্যাডমিন লগইন প্রয়োজন।');
+      }
+      throw new Error(data.error || `বই ইমপোর্ট ব্যর্থ হয়েছে (Status: ${response.status})`);
+    }
+
+    return data as BulkImportResult;
+  },
 };
+

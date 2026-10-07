@@ -44,11 +44,14 @@ import {
   RefreshCw,
   CheckCircle2,
   Calendar,
+  Loader2,
 } from 'lucide-react';
 import { useData } from '../../src/context/DataContext';
 import { Book, Banner, Category, Author, Publisher, OrderDetails } from '../../src/types';
 import { formatPrice, toBengaliNumber } from '../../src/utils/formatters';
 import { bookService } from '../../src/services/bookService';
+import { SearchableCombobox, ComboboxOption } from '../../src/components/SearchableCombobox';
+import { normalizeBengali, matchesAuthor, matchesCategory } from '../../src/utils/filterUtils';
 
 function AdminDashboardContent() {
   const {
@@ -83,6 +86,7 @@ function AdminDashboardContent() {
     resetAllData,
     exportDataJSON,
     importDataJSON,
+    importBooksBulk,
   } = useData();
 
   // Authentication State
@@ -107,7 +111,32 @@ function AdminDashboardContent() {
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [isSavingBook, setIsSavingBook] = useState(false);
 
-  // Book Form State
+  // Book Form State helper: always starts with empty image so new books never inherit previous images
+  const getInitialBookForm = () => ({
+    title: '',
+    bangla_name: '',
+    english_name: '',
+    author: authors[0]?.name || 'হুমায়ূন আহমেদ',
+    publisher: publishers[0]?.name || 'বাতিঘর',
+    category: categories[0]?.name || 'উপন্যাস',
+    price: 350,
+    originalPrice: 500,
+    discount: 30,
+    stock: 20,
+    isbn: `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
+    pages: 220,
+    edition: '১ম সংস্করণ',
+    language: 'বাংলা',
+    description: '',
+    image: '',
+    tags: 'উপন্যাস, জনপ্রিয়',
+    isBestseller: true,
+    isNew: true,
+    isFeatured: true,
+    isInternational: false,
+    sectionIds: ['new-arrivals', 'popular'],
+  });
+
   const [bookForm, setBookForm] = useState<{
     title: string;
     bangla_name: string;
@@ -131,30 +160,75 @@ function AdminDashboardContent() {
     isFeatured: boolean;
     isInternational: boolean;
     sectionIds: string[];
-  }>({
-    title: '',
-    bangla_name: '',
-    english_name: '',
-    author: '',
-    publisher: '',
-    category: '',
-    price: 350,
-    originalPrice: 500,
-    discount: 30,
-    stock: 15,
-    isbn: '',
-    pages: 200,
-    edition: '১ম সংস্করণ',
-    language: 'বাংলা',
-    description: '',
-    image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=400&h=560&q=80',
-    tags: 'উপন্যাস, জনপ্রিয়',
-    isBestseller: false,
-    isNew: true,
-    isFeatured: false,
-    isInternational: false,
-    sectionIds: ['new-arrivals'],
-  });
+  }>(getInitialBookForm());
+
+  // Comprehensive author options combining authors state and unique authors from catalog
+  const authorComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const map = new Map<string, ComboboxOption>();
+
+    // 1. Authors from authors state (database + added)
+    authors.forEach((a) => {
+      if (a.name?.trim()) {
+        const name = normalizeBengali(a.name);
+        const count = books.filter((b) => matchesAuthor(b.author, name)).length;
+        map.set(name.toLowerCase(), {
+          id: a.id,
+          name,
+          subtext: a.era || a.role,
+          count,
+        });
+      }
+    });
+
+    // 2. Authors from existing books that might not be in authors table
+    books.forEach((b) => {
+      const bAuth = normalizeBengali(b.author);
+      if (bAuth && !map.has(bAuth.toLowerCase())) {
+        const count = books.filter((bk) => matchesAuthor(bk.author, bAuth)).length;
+        map.set(bAuth.toLowerCase(), {
+          name: bAuth,
+          subtext: 'বই ক্যাটালগ থেকে',
+          count,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'bn'));
+  }, [authors, books]);
+
+  // Comprehensive publisher options combining publishers state and unique publishers from catalog
+  const publisherComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const map = new Map<string, ComboboxOption>();
+
+    // 1. Publishers from publishers state (localStorage + added)
+    publishers.forEach((p) => {
+      if (p.name?.trim()) {
+        const name = p.name.trim();
+        const count = books.filter((b) => b.publisher === name).length;
+        map.set(name, {
+          id: p.id,
+          name,
+          subtext: p.location || p.established ? `${p.location || ''} ${p.established ? `(${p.established})` : ''}`.trim() : undefined,
+          count,
+        });
+      }
+    });
+
+    // 2. Publishers from existing books
+    books.forEach((b) => {
+      const bPub = b.publisher?.trim();
+      if (bPub && !map.has(bPub)) {
+        const count = books.filter((bk) => bk.publisher === bPub).length;
+        map.set(bPub, {
+          name: bPub,
+          subtext: 'বই ক্যাটালগ থেকে',
+          count,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'bn'));
+  }, [publishers, books]);
 
   // Banner Modal State
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
@@ -186,6 +260,8 @@ function AdminDashboardContent() {
   // Category Modal State
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [isUploadingCatImage, setIsUploadingCatImage] = useState(false);
+  const [isSavingCat, setIsSavingCat] = useState(false);
   const [catForm, setCatForm] = useState({
     name: '',
     englishName: '',
@@ -207,6 +283,8 @@ function AdminDashboardContent() {
   // Author Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [editingAuthId, setEditingAuthId] = useState<string | null>(null);
+  const [isUploadingAuthImage, setIsUploadingAuthImage] = useState(false);
+  const [isSavingAuth, setIsSavingAuth] = useState(false);
   const [authForm, setAuthForm] = useState({
     name: '',
     era: '',
@@ -241,7 +319,10 @@ function AdminDashboardContent() {
   useEffect(() => {
     setIsClientMounted(true);
     let isMounted = true;
-    fetch('/api/admin/auth')
+    fetch('/api/admin/auth', {
+      cache: 'no-store',
+      credentials: 'include',
+    })
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -270,6 +351,7 @@ function AdminDashboardContent() {
       const res = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           username: loginUser.trim(),
           password: loginPass,
@@ -285,7 +367,7 @@ function AdminDashboardContent() {
       } else {
         setLoginError(data.error || 'ভুল ইউজারনেম বা পাসওয়ার্ড প্রদান করেছেন!');
       }
-    } catch (err) {
+    } catch {
       setLoginError('লগইনে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     }
   };
@@ -293,7 +375,10 @@ function AdminDashboardContent() {
   // Handle Logout via server session termination
   const handleLogout = async () => {
     try {
-      await fetch('/api/admin/auth?action=logout', { method: 'POST' });
+      await fetch('/api/admin/auth?action=logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch {
       // Ignore network error on logout
     }
@@ -316,13 +401,16 @@ function AdminDashboardContent() {
     }));
   };
 
-  // Handle Image File Upload -> Supabase Storage (with fallback to Base64)
+  // Handle Image File Upload -> Supabase Storage
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (url: string) => void,
-    bucket = 'book-covers'
+    bucket = 'book-covers',
+    options?: { folder?: string; recordId?: string; type?: 'category' | 'author' | 'book' | 'banner'; setLoading?: (loading: boolean) => void }
   ) => {
     const file = e.target.files?.[0];
+    // Always clear target value so re-selecting the exact same file triggers onChange
+    e.target.value = '';
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -330,22 +418,45 @@ function AdminDashboardContent() {
       return;
     }
 
+    if (options?.setLoading) options.setLoading(true);
+
     try {
       showNotice('ছবি Supabase স্টোরেজে আপলোড হচ্ছে...');
-      const uploadedUrl = await bookService.uploadImage(file, bucket);
+      const uploadedUrl = await bookService.uploadImage(file, bucket, {
+        folder: options?.folder,
+        recordId: options?.recordId,
+        type: options?.type,
+      });
       setter(uploadedUrl);
       showNotice('ছবি সফলভাবে স্টোরেজে আপলোড হয়েছে!');
     } catch (uploadErr: any) {
-      console.warn('[Admin Upload] Supabase Storage upload failed, falling back to local base64:', uploadErr.message);
-      const reader = new FileReader();
-      reader.onload = (loadEvt) => {
-        const result = loadEvt.target?.result as string;
-        if (result) {
-          setter(result);
-          showNotice('ছবি সফলভাবে যুক্ত হয়েছে!');
-        }
-      };
-      reader.readAsDataURL(file);
+      console.error('[Admin Upload Error]:', uploadErr);
+      if (options?.type === 'category' || options?.type === 'author') {
+        showNotice(uploadErr.message || 'ছবি আপলোড ব্যর্থ হয়েছে। দয়া করে পুনরায় চেষ্টা করুন।', 'error');
+      } else {
+        console.warn('[Admin Upload] Supabase Storage upload failed, falling back to local base64:', uploadErr.message);
+        const reader = new FileReader();
+        reader.onload = (loadEvt) => {
+          const result = loadEvt.target?.result as string;
+          if (result) {
+            setter(result);
+            showNotice('ছবি সফলভাবে যুক্ত হয়েছে!');
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } finally {
+      if (options?.setLoading) options.setLoading(false);
+    }
+  };
+
+  // Close and completely reset Book Modal state
+  const handleCloseBookModal = () => {
+    setIsBookModalOpen(false);
+    setEditingBookId(null);
+    setBookForm(getInitialBookForm());
+    if (bookImageInputRef.current) {
+      bookImageInputRef.current.value = '';
     }
   };
 
@@ -370,15 +481,17 @@ function AdminDashboardContent() {
       setIsSavingBook(true);
       showNotice(editingBookId ? `"${title}" সেন্ট্রাল ডাটাবেজে আপডেট হচ্ছে...` : `"${title}" সেন্ট্রাল ডাটাবেজে সংরক্ষিত হচ্ছে...`);
 
+      const cleanImage = (bookForm.image || '').trim();
+
       if (editingBookId) {
         // Edit existing
         await updateBook(editingBookId, {
           title,
           bangla_name: banglaName,
           english_name: englishName,
-          author: bookForm.author.trim(),
-          publisher: bookForm.publisher.trim() || 'বাতিঘর',
-          category: bookForm.category.trim() || 'উপন্যাস',
+          author: normalizeBengali(bookForm.author),
+          publisher: normalizeBengali(bookForm.publisher) || 'বাতিঘর',
+          category: normalizeBengali(bookForm.category) || 'উপন্যাস',
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
           discount: Number(bookForm.discount),
@@ -388,7 +501,8 @@ function AdminDashboardContent() {
           edition: bookForm.edition.trim(),
           language: bookForm.language.trim(),
           description: bookForm.description.trim(),
-          image: bookForm.image.trim(),
+          image: cleanImage,
+          cover_image: cleanImage,
           tags: tagsArray,
           isBestseller: bookForm.isBestseller,
           isNew: bookForm.isNew,
@@ -403,9 +517,9 @@ function AdminDashboardContent() {
           title,
           bangla_name: banglaName,
           english_name: englishName,
-          author: bookForm.author.trim(),
-          publisher: bookForm.publisher.trim() || 'বাতিঘর',
-          category: bookForm.category.trim() || 'উপন্যাস',
+          author: normalizeBengali(bookForm.author),
+          publisher: normalizeBengali(bookForm.publisher) || 'বাতিঘর',
+          category: normalizeBengali(bookForm.category) || 'উপন্যাস',
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
           discount: Number(bookForm.discount),
@@ -415,7 +529,8 @@ function AdminDashboardContent() {
           edition: bookForm.edition.trim(),
           language: bookForm.language.trim(),
           description: bookForm.description.trim(),
-          image: bookForm.image.trim(),
+          image: cleanImage,
+          cover_image: cleanImage,
           tags: tagsArray,
           rating: 4.8,
           reviewCount: 1,
@@ -428,8 +543,7 @@ function AdminDashboardContent() {
         showNotice(`"${title}" সফলভাবে যুক্ত হয়েছে এবং সব ব্যবহারকারীর জন্য লাইভ হয়েছে!`);
       }
 
-      setIsBookModalOpen(false);
-      setEditingBookId(null);
+      handleCloseBookModal();
     } catch (err: any) {
       showNotice(err.message || 'বই সংরক্ষণ করতে সমস্যা দেখা দিয়েছে!', 'error');
     } finally {
@@ -456,7 +570,7 @@ function AdminDashboardContent() {
       edition: book.edition || '১ম সংস্করণ',
       language: book.language || 'বাংলা',
       description: book.description || '',
-      image: book.image,
+      image: book.image || book.cover_image || '',
       tags: book.tags ? book.tags.join(', ') : '',
       isBestseller: !!book.isBestseller,
       isNew: !!book.isNew,
@@ -464,36 +578,19 @@ function AdminDashboardContent() {
       isInternational: !!book.isInternational,
       sectionIds: book.sectionIds || ['new-arrivals'],
     });
+    if (bookImageInputRef.current) {
+      bookImageInputRef.current.value = '';
+    }
     setIsBookModalOpen(true);
   };
 
   // Open Add Book Modal
   const handleOpenAddBook = () => {
     setEditingBookId(null);
-    setBookForm({
-      title: '',
-      bangla_name: '',
-      english_name: '',
-      author: authors[0]?.name || 'হুমায়ূন আহমেদ',
-      publisher: publishers[0]?.name || 'বাতিঘর',
-      category: categories[0]?.name || 'উপন্যাস',
-      price: 350,
-      originalPrice: 500,
-      discount: 30,
-      stock: 20,
-      isbn: `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
-      pages: 220,
-      edition: '১ম সংস্করণ',
-      language: 'বাংলা',
-      description: 'একটি চমৎকার সাহিত্যকর্ম যা পাঠকদের নতুন চিন্তার দিগন্ত উন্মোচন করবে।',
-      image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=400&h=560&q=80',
-      tags: 'উপন্যাস, জনপ্রিয়',
-      isBestseller: true,
-      isNew: true,
-      isFeatured: true,
-      isInternational: false,
-      sectionIds: ['new-arrivals', 'popular'],
-    });
+    setBookForm(getInitialBookForm());
+    if (bookImageInputRef.current) {
+      bookImageInputRef.current.value = '';
+    }
     setIsBookModalOpen(true);
   };
 
@@ -581,33 +678,48 @@ function AdminDashboardContent() {
   };
 
   // Save Category
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catForm.name.trim()) {
       showNotice('ক্যাটাগরির নাম আবশ্যক!', 'error');
       return;
     }
-
-    if (editingCatId) {
-      updateCategory(editingCatId, {
-        name: catForm.name.trim(),
-        englishName: catForm.englishName.trim() || catForm.name.trim(),
-        iconName: catForm.iconName || 'BookOpen',
-        imageUrl: catForm.imageUrl,
-      });
-      showNotice(`ক্যাটাগরি "${catForm.name}" সফলভাবে আপডেট হয়েছে!`);
-    } else {
-      addCategory({
-        name: catForm.name.trim(),
-        englishName: catForm.englishName.trim() || catForm.name.trim(),
-        iconName: catForm.iconName || 'BookOpen',
-        imageUrl: catForm.imageUrl,
-        bookCount: 0,
-      });
-      showNotice(`নতুন ক্যাটাগরি "${catForm.name}" যুক্ত করা হয়েছে!`);
+    if (isUploadingCatImage) {
+      showNotice('ছবি আপলোড সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন...', 'error');
+      return;
     }
-    setIsCatModalOpen(false);
-    setEditingCatId(null);
+
+    try {
+      setIsSavingCat(true);
+      const cleanImageUrl = (catForm.imageUrl || '').trim();
+
+      if (editingCatId) {
+        await updateCategory(editingCatId, {
+          name: catForm.name.trim(),
+          englishName: catForm.englishName.trim() || catForm.name.trim(),
+          iconName: catForm.iconName || 'BookOpen',
+          imageUrl: cleanImageUrl,
+          image: cleanImageUrl,
+        });
+        showNotice(`ক্যাটাগরি "${catForm.name}" সফলভাবে আপডেট হয়েছে!`);
+      } else {
+        await addCategory({
+          name: catForm.name.trim(),
+          englishName: catForm.englishName.trim() || catForm.name.trim(),
+          iconName: catForm.iconName || 'BookOpen',
+          imageUrl: cleanImageUrl,
+          image: cleanImageUrl,
+          bookCount: 0,
+        });
+        showNotice(`নতুন ক্যাটাগরি "${catForm.name}" যুক্ত করা হয়েছে!`);
+      }
+      setIsCatModalOpen(false);
+      setEditingCatId(null);
+    } catch (err: any) {
+      showNotice(err.message || 'ক্যাটাগরি সংরক্ষণে ত্রুটি হয়েছে', 'error');
+    } finally {
+      setIsSavingCat(false);
+    }
   };
 
   // Save Publisher
@@ -643,35 +755,50 @@ function AdminDashboardContent() {
   };
 
   // Save Author
-  const handleSaveAuthor = (e: React.FormEvent) => {
+  const handleSaveAuthor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authForm.name.trim()) {
       showNotice('লেখকের নাম আবশ্যক!', 'error');
       return;
     }
-
-    if (editingAuthId) {
-      updateAuthor(editingAuthId, {
-        name: authForm.name.trim(),
-        era: authForm.era.trim(),
-        role: authForm.role.trim(),
-        bio: authForm.bio.trim(),
-        image: authForm.image,
-      });
-      showNotice(`লেখক "${authForm.name}" আপডেট হয়েছে!`);
-    } else {
-      addAuthor({
-        name: authForm.name.trim(),
-        era: authForm.era.trim(),
-        role: authForm.role.trim(),
-        bio: authForm.bio.trim(),
-        image: authForm.image,
-        bookCount: 0,
-      });
-      showNotice(`নতুন লেখক "${authForm.name}" যুক্ত হয়েছে!`);
+    if (isUploadingAuthImage) {
+      showNotice('ছবি আপলোড সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন...', 'error');
+      return;
     }
-    setIsAuthModalOpen(false);
-    setEditingAuthId(null);
+
+    try {
+      setIsSavingAuth(true);
+      const cleanImage = (authForm.image || '').trim();
+
+      if (editingAuthId) {
+        await updateAuthor(editingAuthId, {
+          name: authForm.name.trim(),
+          era: authForm.era.trim(),
+          role: authForm.role.trim(),
+          bio: authForm.bio.trim(),
+          image: cleanImage,
+          image_url: cleanImage,
+        });
+        showNotice(`লেখক "${authForm.name}" আপডেট হয়েছে!`);
+      } else {
+        await addAuthor({
+          name: authForm.name.trim(),
+          era: authForm.era.trim(),
+          role: authForm.role.trim(),
+          bio: authForm.bio.trim(),
+          image: cleanImage,
+          image_url: cleanImage,
+          bookCount: 0,
+        });
+        showNotice(`নতুন লেখক "${authForm.name}" যুক্ত হয়েছে!`);
+      }
+      setIsAuthModalOpen(false);
+      setEditingAuthId(null);
+    } catch (err: any) {
+      showNotice(err.message || 'লেখক সংরক্ষণে ত্রুটি হয়েছে', 'error');
+    } finally {
+      setIsSavingAuth(false);
+    }
   };
 
   const safeBooks = Array.isArray(books) ? books : [];
@@ -810,22 +937,67 @@ function AdminDashboardContent() {
     showNotice('সম্পূর্ণ ডেটাবেজের ব্যাকআপ ফাইল ডাউনলোড সম্পন্ন হয়েছে!');
   };
 
-  // Handle Import JSON
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Bulk Import / Restore JSON
+  const [isImportingBooks, setIsImportingBooks] = useState(false);
+  const [importSummaryModal, setImportSummaryModal] = useState<{
+    isOpen: boolean;
+    total: number;
+    imported: number;
+    updated: number;
+    failed: number;
+    failedRecords: Array<{ index: number; title: string; reason: string }>;
+    message: string;
+  } | null>(null);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setIsImportingBooks(true);
+    showNotice(`${file.name} ফাইলটি আপলোড ও সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা হচ্ছে...`);
+
     const reader = new FileReader();
-    reader.onload = (loadEvt) => {
+    reader.onload = async (loadEvt) => {
       const content = loadEvt.target?.result as string;
-      if (content) {
-        const ok = importDataJSON(content);
-        if (ok) {
-          showNotice('ব্যাকআপ ডেটা সফলভাবে রিস্টোর করা হয়েছে!');
+      if (!content) {
+        setIsImportingBooks(false);
+        showNotice('ফাইলটি খালি বা পড়া সম্ভব হয়নি!', 'error');
+        e.target.value = '';
+        return;
+      }
+
+      try {
+        const result = await importDataJSON(content);
+        setIsImportingBooks(false);
+        e.target.value = '';
+
+        if (result.success) {
+          setImportSummaryModal({
+            isOpen: true,
+            total: result.total,
+            imported: result.imported,
+            updated: result.updated,
+            failed: result.failed,
+            failedRecords: result.failedRecords || [],
+            message: result.message,
+          });
+          showNotice(result.message, 'success');
         } else {
-          showNotice('অকার্যকর ব্যাকআপ ফাইল!', 'error');
+          showNotice(result.message || 'ইমপোর্ট সম্পন্ন করা সম্ভব হয়নি!', 'error');
         }
+      } catch (err: any) {
+        setIsImportingBooks(false);
+        e.target.value = '';
+        showNotice(err.message || 'ইমপোর্ট করার সময় ত্রুটি ঘটেছে!', 'error');
       }
     };
+
+    reader.onerror = () => {
+      setIsImportingBooks(false);
+      e.target.value = '';
+      showNotice('ফাইল পড়তে সমস্যা হয়েছে!', 'error');
+    };
+
     reader.readAsText(file);
   };
 
@@ -1680,6 +1852,26 @@ function AdminDashboardContent() {
                       <RefreshCw className="w-3.5 h-3.5 text-zinc-600" />
                       <span>ডাটা রিফ্রেশ</span>
                     </button>
+                    <label
+                      className={`px-3 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0 ${
+                        isImportingBooks ? 'opacity-60 pointer-events-none' : ''
+                      }`}
+                      title="JSON ফাইল থেকে একসাথে ৫০-১০০+ বই সেন্ট্রাল ডাটাবেজে ইমপোর্ট করুন"
+                    >
+                      {isImportingBooks ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-zinc-600" />
+                      )}
+                      <span>{isImportingBooks ? 'ইমপোর্ট হচ্ছে...' : 'ইমপোর্ট (JSON)'}</span>
+                      <input
+                        type="file"
+                        accept=".json"
+                        disabled={isImportingBooks}
+                        onChange={handleImport}
+                        className="hidden"
+                      />
+                    </label>
                     <button
                       onClick={handleOpenAddBook}
                       className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
@@ -1760,12 +1952,16 @@ function AdminDashboardContent() {
                           <tr key={book.id} className="hover:bg-amber-50/30 transition-colors">
                             <td className="py-3 px-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-11 h-15 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0 shadow-2xs">
-                                  <img
-                                    src={book.image}
-                                    alt={book.title}
-                                    className="w-full h-full object-cover"
-                                  />
+                                <div className="w-11 h-15 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0 shadow-2xs flex items-center justify-center">
+                                  {book.image || book.cover_image ? (
+                                    <img
+                                      src={book.image || book.cover_image}
+                                      alt={book.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <BookOpen className="w-5 h-5 text-zinc-400" />
+                                  )}
                                 </div>
                                 <div>
                                   <div className="font-bold text-zinc-900 text-sm">
@@ -2103,7 +2299,7 @@ function AdminDashboardContent() {
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl overflow-hidden bg-amber-50 border border-amber-200/80 shrink-0">
                         <img
-                          src={cat.imageUrl}
+                          src={cat.imageUrl || (cat as any).image}
                           alt={cat.name}
                           className="w-full h-full object-cover"
                         />
@@ -2126,7 +2322,7 @@ function AdminDashboardContent() {
                             name: cat.name,
                             englishName: cat.englishName,
                             iconName: cat.iconName || 'BookOpen',
-                            imageUrl: cat.imageUrl,
+                            imageUrl: cat.imageUrl || (cat as any).image || '',
                           });
                           setIsCatModalOpen(true);
                         }}
@@ -2286,7 +2482,7 @@ function AdminDashboardContent() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-14 h-14 rounded-2xl overflow-hidden bg-amber-50 border border-amber-200 shrink-0 shadow-2xs">
-                        <img src={auth.image} alt={auth.name} className="w-full h-full object-cover" />
+                        <img src={auth.image || (auth as any).image_url} alt={auth.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-zinc-900 text-sm">{auth.name}</h4>
@@ -2298,7 +2494,7 @@ function AdminDashboardContent() {
 
                     <div className="pt-3 border-t border-zinc-100 flex items-center justify-between text-xs">
                       <span className="text-zinc-500 font-bold">
-                        বই: {toBengaliNumber(books.filter((b) => b.author.includes(auth.name)).length)} টি
+                        বই: {toBengaliNumber(books.filter((b) => matchesAuthor(b.author, auth.name)).length)} টি
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -2310,7 +2506,7 @@ function AdminDashboardContent() {
                               era: auth.era,
                               role: auth.role,
                               bio: auth.bio,
-                              image: auth.image,
+                              image: auth.image || (auth as any).image_url || '',
                             });
                             setIsAuthModalOpen(true);
                           }}
@@ -3279,7 +3475,7 @@ function AdminDashboardContent() {
                         Environment Variable 1
                       </div>
                       <div className="font-mono text-xs text-zinc-800 font-semibold flex items-center justify-between">
-                        <span>STEADFAST_API_KEY</span>
+                        <span>Steadfast API Key</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                           isSteadfastConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}>
@@ -3293,7 +3489,7 @@ function AdminDashboardContent() {
                         Environment Variable 2
                       </div>
                       <div className="font-mono text-xs text-zinc-800 font-semibold flex items-center justify-between">
-                        <span>STEADFAST_SECRET_KEY</span>
+                        <span>Steadfast Secret Key</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                           isSteadfastConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}>
@@ -3327,8 +3523,8 @@ function AdminDashboardContent() {
                     <li>সেখান থেকে <strong>API Key</strong> এবং <strong>Secret Key</strong> সংগ্রহ করুন।</li>
                     <li>
                       আপনার সার্ভারের <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">.env.local</code> ফাইলে বা হোস্টিং ড্যাশবোর্ডে{' '}
-                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">STEADFAST_API_KEY</code> ও{' '}
-                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">STEADFAST_SECRET_KEY</code> যুক্ত করে সার্ভার রিস্টার্ট করুন।
+                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">API Key</code> ও{' '}
+                      <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded text-[11px]">Secret Key</code> যুক্ত করে সার্ভার রিস্টার্ট করুন।
                     </li>
                   </ol>
                 </div>
@@ -3640,12 +3836,17 @@ function AdminDashboardContent() {
                       পূর্বে ডাউনলোড করা ব্যাকআপ .json ফাইল আপলোড করে সকল বই ও ডেটা পুনরুদ্ধার করুন।
                     </p>
                   </div>
-                  <label className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98">
-                    <Upload className="w-4 h-4" />
-                    <span>ফাইল নির্বাচন ও রিস্টোর</span>
+                  <label className={`w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 ${isImportingBooks ? 'opacity-60 pointer-events-none' : ''}`}>
+                    {isImportingBooks ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    <span>{isImportingBooks ? 'ডাটাবেজে রিস্টোর হচ্ছে...' : 'ফাইল নির্বাচন ও রিস্টোর'}</span>
                     <input
                       type="file"
                       accept=".json"
+                      disabled={isImportingBooks}
                       onChange={handleImport}
                       className="hidden"
                     />
@@ -3704,7 +3905,7 @@ function AdminDashboardContent() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsBookModalOpen(false)}
+                onClick={handleCloseBookModal}
                 className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -3763,46 +3964,50 @@ function AdminDashboardContent() {
               </div>
 
               {/* Row 2: Author */}
-              <div>
-                <label className="block text-xs font-bold text-zinc-700 mb-1">
-                  লেখকের নাম (Author) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={bookForm.author}
-                  onChange={(e) => setBookForm({ ...bookForm, author: e.target.value })}
-                  placeholder="যেমন: হুমায়ূন আহমেদ / Haruki Murakami"
-                  list="authors-list"
-                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
-                />
-                <datalist id="authors-list">
-                  {authors.map((a) => (
-                    <option key={a.id} value={a.name} />
-                  ))}
-                </datalist>
-              </div>
+              <SearchableCombobox
+                label="লেখকের নাম (Author)"
+                required
+                value={bookForm.author}
+                onChange={(val) => setBookForm({ ...bookForm, author: val })}
+                options={authorComboboxOptions}
+                placeholder="যেমন: হুমায়ূন আহমেদ / সুনীল গঙ্গোপাধ্যায়"
+                emptyText="কোনো লেখক পাওয়া যায়নি (টাইপ করে সরাসরি নতুন নাম ব্যবহার করুন)"
+                onAddNewClick={() => {
+                  setEditingAuthId(null);
+                  setAuthForm({
+                    name: '',
+                    era: '',
+                    role: 'কথাসাহিত্যিক ও লেখক',
+                    bio: '',
+                    image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80',
+                  });
+                  setIsAuthModalOpen(true);
+                }}
+                addNewButtonLabel="নতুন লেখক প্রোফাইল যোগ করুন"
+              />
 
               {/* Row 2: Publisher & Category */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">
-                    প্রকাশনী (Publisher / Prokashoni)
-                  </label>
-                  <input
-                    type="text"
-                    value={bookForm.publisher}
-                    onChange={(e) => setBookForm({ ...bookForm, publisher: e.target.value })}
-                    placeholder="যেমন: বাতিঘর"
-                    list="publishers-list"
-                    className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
-                  />
-                  <datalist id="publishers-list">
-                    {publishers.map((p) => (
-                      <option key={p.id} value={p.name} />
-                    ))}
-                  </datalist>
-                </div>
+                <SearchableCombobox
+                  label="প্রকাশনী (Publisher / Prokashoni)"
+                  value={bookForm.publisher}
+                  onChange={(val) => setBookForm({ ...bookForm, publisher: val })}
+                  options={publisherComboboxOptions}
+                  placeholder="যেমন: বাতিঘর / প্রথমা প্রকাশন"
+                  emptyText="কোনো প্রকাশনী পাওয়া যায়নি (টাইপ করে সরাসরি নতুন নাম ব্যবহার করুন)"
+                  onAddNewClick={() => {
+                    setEditingPubId(null);
+                    setPubForm({
+                      name: '',
+                      description: '',
+                      location: 'ঢাকা',
+                      established: '২০১২',
+                      logo: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=120&q=80',
+                    });
+                    setIsPubModalOpen(true);
+                  }}
+                  addNewButtonLabel="নতুন প্রকাশনী প্রোফাইল যোগ করুন"
+                />
 
                 <div>
                   <label className="block text-xs font-bold text-zinc-700 mb-1">
@@ -3926,6 +4131,20 @@ function AdminDashboardContent() {
                         <Upload className="w-3.5 h-3.5" />
                         <span>কম্পিউটার থেকে ছবি আপলোড করুন</span>
                       </button>
+                      {bookForm.image && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookForm((prev) => ({ ...prev, image: '' }));
+                            if (bookImageInputRef.current) bookImageInputRef.current.value = '';
+                          }}
+                          className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors cursor-pointer border border-rose-200"
+                          title="ছবি মুছুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ছবি মুছুন</span>
+                        </button>
+                      )}
                       <input
                         type="file"
                         ref={bookImageInputRef}
@@ -4068,7 +4287,7 @@ function AdminDashboardContent() {
               <div className="pt-4 border-t border-zinc-200 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsBookModalOpen(false)}
+                  onClick={handleCloseBookModal}
                   className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
                 >
                   বাতিল
@@ -4403,17 +4622,29 @@ function AdminDashboardContent() {
                   />
                   <button
                     type="button"
+                    disabled={isUploadingCatImage || isSavingCat}
                     onClick={() => catImageInputRef.current?.click()}
-                    className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl text-xs font-bold cursor-pointer"
+                    className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 rounded-xl text-xs font-bold cursor-pointer"
                   >
-                    ফাইল
+                    {isUploadingCatImage ? 'আপলোড হচ্ছে...' : 'ফাইল'}
                   </button>
                   <input
                     type="file"
                     ref={catImageInputRef}
                     accept="image/*"
+                    disabled={isUploadingCatImage || isSavingCat}
                     onChange={(e) =>
-                      handleFileUpload(e, (url) => setCatForm((prev) => ({ ...prev, imageUrl: url })))
+                      handleFileUpload(
+                        e,
+                        (url) => setCatForm((prev) => ({ ...prev, imageUrl: url, image: url })),
+                        'book-covers',
+                        {
+                          folder: `category-images/${editingCatId || 'new'}`,
+                          recordId: editingCatId || 'new',
+                          type: 'category',
+                          setLoading: setIsUploadingCatImage,
+                        }
+                      )
                     }
                     className="hidden"
                   />
@@ -4423,16 +4654,18 @@ function AdminDashboardContent() {
               <div className="pt-3 flex justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isUploadingCatImage || isSavingCat}
                   onClick={() => setIsCatModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 text-xs font-bold cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 disabled:opacity-50 text-xs font-bold cursor-pointer"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md cursor-pointer"
+                  disabled={isUploadingCatImage || isSavingCat}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 text-xs font-bold shadow-md cursor-pointer"
                 >
-                  সংরক্ষণ করুন
+                  {isSavingCat ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
                 </button>
               </div>
             </form>
@@ -4635,17 +4868,29 @@ function AdminDashboardContent() {
                   />
                   <button
                     type="button"
+                    disabled={isUploadingAuthImage || isSavingAuth}
                     onClick={() => authImageInputRef.current?.click()}
-                    className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl text-xs font-bold cursor-pointer"
+                    className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 rounded-xl text-xs font-bold cursor-pointer"
                   >
-                    ফাইল
+                    {isUploadingAuthImage ? 'আপলোড হচ্ছে...' : 'ফাইল'}
                   </button>
                   <input
                     type="file"
                     ref={authImageInputRef}
                     accept="image/*"
+                    disabled={isUploadingAuthImage || isSavingAuth}
                     onChange={(e) =>
-                      handleFileUpload(e, (url) => setAuthForm((prev) => ({ ...prev, image: url })))
+                      handleFileUpload(
+                        e,
+                        (url) => setAuthForm((prev) => ({ ...prev, image: url })),
+                        'book-covers',
+                        {
+                          folder: `author-images/${editingAuthId || 'new'}`,
+                          recordId: editingAuthId || 'new',
+                          type: 'author',
+                          setLoading: setIsUploadingAuthImage,
+                        }
+                      )
                     }
                     className="hidden"
                   />
@@ -4655,16 +4900,18 @@ function AdminDashboardContent() {
               <div className="pt-3 flex justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isUploadingAuthImage || isSavingAuth}
                   onClick={() => setIsAuthModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 text-xs font-bold cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 disabled:opacity-50 text-xs font-bold cursor-pointer"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md cursor-pointer"
+                  disabled={isUploadingAuthImage || isSavingAuth}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 text-xs font-bold shadow-md cursor-pointer"
                 >
-                  সংরক্ষণ করুন
+                  {isSavingAuth ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
                 </button>
               </div>
             </form>
@@ -4915,6 +5162,79 @@ function AdminDashboardContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* BULK IMPORT SUMMARY MODAL */}
+      {importSummaryModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-zinc-200 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900">ইমপোর্ট ফলাফল সারসংক্ষেপ</h3>
+                  <p className="text-xs text-zinc-500">সেন্ট্রাল ডাটাবেজ আপডেট সম্পন্ন হয়েছে</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportSummaryModal(null)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-center">
+                <span className="text-[11px] font-semibold text-zinc-500 block">মোট রেকর্ড</span>
+                <span className="text-lg font-bold text-zinc-900">{toBengaliNumber(importSummaryModal.total)}</span>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80 text-center">
+                <span className="text-[11px] font-semibold text-emerald-700 block">নতুন যুক্ত</span>
+                <span className="text-lg font-bold text-emerald-700">{toBengaliNumber(importSummaryModal.imported)}</span>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200/80 text-center">
+                <span className="text-[11px] font-semibold text-blue-700 block">আপডেট</span>
+                <span className="text-lg font-bold text-blue-700">{toBengaliNumber(importSummaryModal.updated)}</span>
+              </div>
+              <div className={`p-3 rounded-2xl border text-center ${importSummaryModal.failed > 0 ? 'bg-rose-50 border-rose-200/80' : 'bg-zinc-50 border-zinc-200/80'}`}>
+                <span className={`text-[11px] font-semibold block ${importSummaryModal.failed > 0 ? 'text-rose-700' : 'text-zinc-500'}`}>ব্যর্থ</span>
+                <span className={`text-lg font-bold ${importSummaryModal.failed > 0 ? 'text-rose-700' : 'text-zinc-900'}`}>{toBengaliNumber(importSummaryModal.failed)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 bg-amber-50/60 p-3 rounded-xl border border-amber-200/60 leading-relaxed">
+              {importSummaryModal.message}
+            </p>
+
+            {importSummaryModal.failedRecords && importSummaryModal.failedRecords.length > 0 && (
+              <div className="space-y-1.5 flex-1 overflow-hidden flex flex-col">
+                <span className="text-xs font-bold text-rose-800">ব্যর্থ রেকর্ডের বিবরণ:</span>
+                <div className="overflow-y-auto max-h-40 divide-y divide-rose-100 bg-rose-50/40 p-2.5 rounded-xl border border-rose-200 text-xs">
+                  {importSummaryModal.failedRecords.map((item, idx) => (
+                    <div key={idx} className="py-1 text-zinc-700 flex justify-between gap-2">
+                      <span className="font-semibold text-rose-900 truncate">#{item.index} {item.title}</span>
+                      <span className="text-rose-600 shrink-0">{item.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setImportSummaryModal(null)}
+                className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                ঠিক আছে
+              </button>
+            </div>
           </div>
         </div>
       )}

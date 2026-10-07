@@ -4,6 +4,9 @@ import { isRequestAuthorized } from '../../../../src/lib/serverAuth';
 import { getServerSupabaseClient } from '../../../../src/lib/serverSupabase';
 import { bookToRow, bookToRowPartial } from '../../../../src/services/bookService';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET: Fetch books from Supabase or check connectivity.
  */

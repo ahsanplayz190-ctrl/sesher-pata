@@ -2,6 +2,8 @@
 
 import React, { useRef } from 'react';
 import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { matchesCategory, normalizeBengali } from '../utils/filterUtils';
 
 interface CategoryCarouselProps {
   onSelectCategory: (categoryId: string) => void;
@@ -26,7 +28,18 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
   onSelectCategory,
   activeCategoryId,
 }) => {
+  const { categories } = useData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Blend static carousel metadata with live categories from database
+  const displayCategories = QUICK_CATEGORIES.map((quickCat) => {
+    const liveCat = categories.find((c) => c.id === quickCat.id || c.name === quickCat.name);
+    return {
+      ...quickCat,
+      name: liveCat?.name || quickCat.name,
+      image: liveCat?.imageUrl || (liveCat as any)?.image || quickCat.image,
+    };
+  });
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -71,13 +84,13 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
             <span className="text-[10px] text-zinc-400 font-medium">সমগ্র সংগ্রহ</span>
           </div>
 
-          {QUICK_CATEGORIES.map((cat) => {
-            const isSelected = activeCategoryId === cat.id;
+          {displayCategories.map((cat) => {
+            const isSelected = matchesCategory(cat.name, [], activeCategoryId, categories) || cat.id === activeCategoryId;
 
             return (
               <div
                 key={cat.id}
-                onClick={() => onSelectCategory(cat.id)}
+                onClick={() => onSelectCategory(cat.name)}
                 className={`group shrink-0 w-24 sm:w-28 bg-white rounded-xl p-2 sm:p-2.5 border transition-all duration-200 cursor-pointer flex flex-col items-center text-center select-none shadow-2xs hover:shadow-sm ${
                   isSelected
                     ? 'border-[#E5A913] bg-amber-50/40 ring-1 ring-[#E5A913]'

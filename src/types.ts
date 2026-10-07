@@ -63,7 +63,10 @@ export interface Category {
   english_name?: string;
   iconName: string;
   imageUrl: string;
+  image?: string;
   bookCount: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Author {
@@ -73,7 +76,10 @@ export interface Author {
   role: string;
   bio: string;
   image: string;
+  image_url?: string;
   bookCount?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Publisher {

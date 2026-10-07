@@ -7,6 +7,7 @@ import { SectionHeader } from '../SectionHeader';
 import { ProductCarousel } from '../ProductCarousel';
 import { Book } from '../../types';
 import { Gift } from 'lucide-react';
+import { matchesCategory } from '../../utils/filterUtils';
 
 interface BanglaHomeProps {
   books: Book[];
@@ -30,7 +31,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
   onExploreClick,
 }) => {
   const internationalBooks = useMemo(
-    () => books.filter((b) => b.isInternational || b.sectionIds?.includes('international') || b.category === 'বিদেশি বই' || b.tags?.includes('অনুবাদ')),
+    () => books.filter((b) => b.isInternational || b.sectionIds?.includes('international') || matchesCategory(b.category, b.tags, 'english')),
     [books]
   );
 
@@ -50,17 +51,17 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
   );
 
   const classicAndNovelBooks = useMemo(
-    () => books.filter((b) => b.category === 'উপন্যাস' || b.category === 'কবিতা'),
+    () => books.filter((b) => matchesCategory(b.category, b.tags, 'novel') || matchesCategory(b.category, b.tags, 'poetry')),
     [books]
   );
 
   const juvenileAndMysteryBooks = useMemo(
-    () => books.filter((b) => b.category === 'কিশোর সাহিত্য' || b.category === 'গোয়েন্দা ও থ্রিলার' || b.tags?.includes('ফেলুদা')),
+    () => books.filter((b) => matchesCategory(b.category, b.tags, 'children') || matchesCategory(b.category, b.tags, 'thriller') || b.tags?.includes('ফেলুদা')),
     [books]
   );
 
   const islamicBooks = useMemo(
-    () => books.filter((b) => b.category === 'ইসলামিক সাহিত্য' || b.category === 'ইসলামিক বই' || b.tags?.includes('ইসলামিক')),
+    () => books.filter((b) => matchesCategory(b.category, b.tags, 'islamic')),
     [books]
   );
 

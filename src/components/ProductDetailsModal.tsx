@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackViewContent } from '../utils/metaPixel';
+import { matchesCategory, matchesAuthor } from '../utils/filterUtils';
 
 interface ProductDetailsModalProps {
   book: Book;
@@ -44,14 +45,14 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
       setQuantity(book.stock > 0 ? 1 : 0);
       setActiveImage(book.cover_image || book.image);
     }
-  }, [book?.id, book?.stock]);
+  }, [book?.id, book?.stock, book?.image, book?.cover_image]);
 
   // Gallery images (fallback to main cover)
-  const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.image];
+  const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.cover_image || book.image].filter(Boolean);
 
   // Related books based on category or author
   const relatedBooks = allBooks
-    .filter((b) => b.id !== book.id && (b.category === book.category || b.author === book.author))
+    .filter((b) => b.id !== book.id && (matchesCategory(b.category, b.tags, book.category) || matchesAuthor(b.author, book.author)))
     .slice(0, 4);
 
   const handleShare = () => {

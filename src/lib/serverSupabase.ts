@@ -1,5 +1,6 @@
 import 'server-only';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getServerEnv } from './serverEnv';
 
 if (typeof window !== 'undefined') {
   throw new Error('SECURITY VIOLATION: getServerSupabaseClient can only be called in a server environment.');
@@ -19,16 +20,14 @@ export function getServerSupabaseClient(): SupabaseClient | null {
     return serverSupabaseInstance;
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const { supabaseUrl, supabaseServiceRoleKey, supabaseAnonKey } = getServerEnv();
 
   if (!supabaseUrl || !supabaseUrl.startsWith('http')) {
     console.error('[ServerSupabase] Invalid Supabase URL configured in environment variables');
     return null;
   }
 
-  const keyToUse = serviceRoleKey || anonKey;
+  const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
   if (!keyToUse) {
     console.error('[ServerSupabase] Neither SUPABASE_SERVICE_ROLE_KEY nor NEXT_PUBLIC_SUPABASE_ANON_KEY found in environment variables');
     return null;

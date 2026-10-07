@@ -6,21 +6,43 @@ import {
   ADMIN_COOKIE_NAME,
 } from '../../../../src/lib/serverAuth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const authenticated = isRequestAuthorized(request);
-  return NextResponse.json({ authenticated });
+  return NextResponse.json(
+    { authenticated },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const action = url.searchParams.get('action');
+    const body = await request.json().catch(() => ({}));
+    const action = url.searchParams.get('action') || body?.action;
 
-    const isSecure = url.protocol === 'https:';
+    const isProduction = process.env.NODE_ENV === 'production';
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    const isSecure = isProduction || forwardedProto === 'https' || url.protocol === 'https:';
 
     // Handle Logout
     if (action === 'logout') {
-      const response = NextResponse.json({ success: true, message: 'লগআউট সম্পন্ন হয়েছে' });
+      const response = NextResponse.json(
+        { success: true, message: 'লগআউট সম্পন্ন হয়েছে' },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      );
       response.cookies.set({
         name: ADMIN_COOKIE_NAME,
         value: '',
@@ -34,7 +56,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle Login
-    const body = await request.json();
     const { username, password, remember } = body || {};
 
     if (!username || !password) {
@@ -56,10 +77,17 @@ export async function POST(request: NextRequest) {
     const maxAgeSeconds = remember ? 86400 * 7 : 86400;
     const token = createSessionToken(maxAgeSeconds);
 
-    const response = NextResponse.json({
-      success: true,
-      message: 'স্বাগতম! অ্যাডমিন প্যানেলে সফলভাবে প্রবেশ করেছেন',
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: 'স্বাগতম! অ্যাডমিন প্যানেলে সফলভাবে প্রবেশ করেছেন',
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
 
     response.cookies.set({
       name: ADMIN_COOKIE_NAME,
@@ -73,9 +101,9 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err: any) {
-    console.error('[Admin Auth Error]:', err);
+    console.error('[Admin Auth API Error]:', err?.message || 'Internal error');
     return NextResponse.json(
-      { error: 'সার্ভারে অভ্যন্তরীণ সমস্যা দেখা দিয়েছে' },
+      { error: 'সার্ভারে অভ্যন্তরীণ সমস্যা দেখা দিয়েছে। এনভায়রনমেন্ট কনফিগারেশন যাচাই করুন।' },
       { status: 500 }
     );
   }

@@ -67,7 +67,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center cursor-pointer border-b-[3.5px] border-[#DEB038]"
       >
         <img
-          src={book.image}
+          src={book.image || book.cover_image}
           alt={book.title}
           className={`h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md ${
             book.stock <= 0 ? 'opacity-70 grayscale-[25%]' : ''

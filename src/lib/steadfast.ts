@@ -1,10 +1,10 @@
 import 'server-only';
+import { getServerEnv } from './serverEnv';
 
 if (typeof window !== 'undefined') {
   throw new Error('CRITICAL SECURITY ERROR: src/lib/steadfast.ts can only run in a server environment.');
 }
 
-const STEADFAST_BASE_URL = (process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface SteadfastCredentials {
@@ -19,20 +19,19 @@ export interface SteadfastCredentials {
  * Server-side only: never exposed to client bundles or API responses.
  */
 export async function getSteadfastCredentials(): Promise<SteadfastCredentials> {
-  const apiKey = (process.env.STEADFAST_API_KEY || '').trim();
-  const secretKey = (process.env.STEADFAST_SECRET_KEY || '').trim();
-  const isConnected = Boolean(apiKey && secretKey);
+  const { steadfastApiKey, steadfastSecretKey } = getServerEnv();
+  const isConnected = Boolean(steadfastApiKey && steadfastSecretKey);
 
   return {
-    apiKey,
-    secretKey,
+    apiKey: steadfastApiKey,
+    secretKey: steadfastSecretKey,
     isConnected,
     lastVerifiedAt: null,
   };
 }
 
 /**
- * Validate credentials against Steadfast API before saving.
+ * Validate credentials against Steadfast API before saving or during health checks.
  * Safe testing: calls official get_balance endpoint.
  */
 export async function verifySteadfastCredentials(
@@ -43,8 +42,11 @@ export async function verifySteadfastCredentials(
     return { success: false, error: 'API Key এবং Secret Key আবশ্যক।' };
   }
 
+  const { steadfastBaseUrl } = getServerEnv();
+  const baseUrl = (steadfastBaseUrl || 'https://portal.packzy.com/api/v1').replace(/\/+$/, '');
+
   try {
-    const res = await fetch(`${STEADFAST_BASE_URL}/get_balance`, {
+    const res = await fetch(`${baseUrl}/get_balance`, {
       method: 'GET',
       headers: {
         'Api-Key': apiKey.trim(),

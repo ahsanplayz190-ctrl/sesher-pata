@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isRequestAuthorized } from '../../../../src/lib/serverAuth';
 import { getServerSupabaseClient } from '../../../../src/lib/serverSupabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * POST: Upload image/file to Supabase Storage.
  * Strictly verified: only authenticated admins can upload files.
@@ -19,6 +22,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const bucket = (formData.get('bucket') as string) || 'book-covers';
+    const folder = (formData.get('folder') as string) || '';
+    const recordId = (formData.get('recordId') as string) || '';
+    const type = (formData.get('type') as string) || '';
 
     if (!file) {
       return NextResponse.json(
@@ -44,28 +50,42 @@ export async function POST(request: NextRequest) {
     const allowedImageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
     const allowedDocExts = ['pdf', 'epub', 'txt'];
 
-    if (bucket === 'book-covers' || bucket === 'book-banners') {
-      if (!allowedImageExts.includes(extension)) {
-        return NextResponse.json(
-          { error: `অননুমোদিত ইমেজ ফরম্যাট। অনুমোদিত ফরম্যাট: ${allowedImageExts.join(', ')}` },
-          { status: 400 }
-        );
-      }
-    } else if (bucket === 'book-files') {
+    if (bucket === 'book-files') {
       if (!allowedDocExts.includes(extension)) {
         return NextResponse.json(
           { error: `অননুমোদিত ফাইল ফরম্যাট। অনুমোদিত ফরম্যাট: ${allowedDocExts.join(', ')}` },
           { status: 400 }
         );
       }
+    } else {
+      if (!allowedImageExts.includes(extension)) {
+        return NextResponse.json(
+          { error: `অননুমোদিত ইমেজ ফরম্যাট। অনুমোদিত ফরম্যাট: ${allowedImageExts.join(', ')}` },
+          { status: 400 }
+        );
+      }
     }
 
+    const uniqueId = crypto.randomUUID();
     const cleanBaseName = file.name
       .replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .substring(0, 40);
-    const fileName = `${Date.now()}-${cleanBaseName || 'upload'}.${extension || 'jpg'}`;
-    const filePath = `${fileName}`;
+      .substring(0, 30);
+
+    // Determine target subfolder for categories and authors (Section 5 requirement)
+    let targetFolder = '';
+    const cleanRecordId = recordId.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    if (type === 'category' || folder.startsWith('category')) {
+      targetFolder = cleanRecordId ? `category-images/${cleanRecordId}` : 'category-images';
+    } else if (type === 'author' || folder.startsWith('author')) {
+      targetFolder = cleanRecordId ? `author-images/${cleanRecordId}` : 'author-images';
+    } else if (folder) {
+      targetFolder = folder.replace(/[^a-zA-Z0-9_\-\/]/g, '');
+    }
+
+    const fileName = `${Date.now()}-${uniqueId}-${cleanBaseName || 'upload'}.${extension || 'jpg'}`;
+    const filePath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
 
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -92,6 +112,7 @@ export async function POST(request: NextRequest) {
       success: true,
       url: urlData.publicUrl,
       fileName,
+      filePath,
       bucket,
     });
   } catch (err: any) {

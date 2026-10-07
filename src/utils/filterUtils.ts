@@ -1,0 +1,240 @@
+import type { Category, Author } from '../types';
+
+/**
+ * Standardize Bengali and mixed unicode text to NFC format,
+ * removing redundant whitespace and unifying decomposed nuktas (e.g. য় vs য+়, ড় vs ড+়).
+ */
+export function normalizeBengali(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFC')
+    .trim();
+}
+
+/**
+ * Known canonical categories with standard DB names, IDs, English names, and common aliases.
+ */
+export interface CategoryDefinition {
+  id: string;
+  name: string;
+  englishName: string;
+  aliases: string[];
+}
+
+export const CANONICAL_CATEGORIES: CategoryDefinition[] = [
+  {
+    id: 'novel',
+    name: 'উপন্যাস',
+    englishName: 'Novels',
+    aliases: ['উপন্যাস', 'novel', 'novels'],
+  },
+  {
+    id: 'thriller',
+    name: 'থ্রিলার ও রহস্য',
+    englishName: 'Thriller & Mystery',
+    aliases: ['থ্রিলার ও রহস্য', 'গোয়েন্দা ও থ্রিলার', 'থ্রিলার', 'গোয়েন্দা', 'রহস্য', 'thriller', 'mystery'],
+  },
+  {
+    id: 'islamic',
+    name: 'ইসলামিক সাহিত্য',
+    englishName: 'Islamic Literature',
+    aliases: ['ইসলামিক সাহিত্য', 'ইসলামিক বই', 'ইসলামিক', 'ইসলামী সাহিত্য', 'islamic', 'islam'],
+  },
+  {
+    id: 'children',
+    name: 'শিশু-কিশোর',
+    englishName: 'Children & Teens',
+    aliases: ['শিশু-কিশোর', 'কিশোর সাহিত্য', 'শিশু কিশোর', 'কিশোর', 'শিশু', 'children', 'teens'],
+  },
+  {
+    id: 'poetry',
+    name: 'কবিতা',
+    englishName: 'Poetry',
+    aliases: ['কবিতা', 'কবিতা ও সাহিত্য', 'poetry'],
+  },
+  {
+    id: 'story',
+    name: 'গল্প ও সাহিত্য',
+    englishName: 'Short Stories',
+    aliases: ['গল্প ও সাহিত্য', 'ছোটগল্প', 'গল্প', 'story', 'stories'],
+  },
+  {
+    id: 'self-help',
+    name: 'আত্মউন্নয়ন',
+    englishName: 'Self Help & Motivation',
+    aliases: ['আত্মউন্নয়ন', 'আত্মউন্নয়ন', 'self-help', 'motivation'],
+  },
+  {
+    id: 'history',
+    name: 'ইতিহাস ও ঐতিহ্য',
+    englishName: 'History & Culture',
+    aliases: ['ইতিহাস ও ঐতিহ্য', 'ইতিহাস', 'ঐতিহ্য', 'history'],
+  },
+  {
+    id: 'scifi',
+    name: 'সায়েন্স ফিকশন',
+    englishName: 'Sci-Fi & Fantasy',
+    aliases: ['সায়েন্স ফিকশন', 'সায়েন্স ফিকশন', 'কল্পবিজ্ঞান', 'scifi', 'sci-fi'],
+  },
+  {
+    id: 'english',
+    name: 'ইংরেজি ও অনুবাদ',
+    englishName: 'English & Translations',
+    aliases: ['ইংরেজি ও অনুবাদ', 'বিদেশি বই', 'অনুবাদ সাহিত্য', 'অনুবাদ', 'ইংরেজি', 'english', 'translation'],
+  },
+  {
+    id: 'academic',
+    name: 'একাডেমিক ও ক্যারিয়ার',
+    englishName: 'Academic & Career',
+    aliases: ['একাডেমিক ও ক্যারিয়ার', 'একাডেমিক বই', 'একাডেমিক', 'academic', 'career'],
+  },
+  {
+    id: 'package',
+    name: 'স্পেশাল প্যাকেজ',
+    englishName: 'Special Bundles',
+    aliases: ['স্পেশাল প্যাকেজ', 'প্যাকেজ অফার', 'প্যাকেজ', 'package', 'bundle'],
+  },
+];
+
+/**
+ * Check if a book's category or tags match a filter category.
+ * Filter category can be an ID ('thriller', 'novel'), a canonical Bengali name ('থ্রিলার ও রহস্য'),
+ * an English name, or an alias ('গোয়েন্দা ও থ্রিলার').
+ */
+export function matchesCategory(
+  bookCategory: string | undefined | null,
+  bookTags: string[] | undefined | null,
+  filterCategory: string | undefined | null,
+  dynamicCategories?: Category[]
+): boolean {
+  if (!filterCategory || filterCategory === 'all') return true;
+
+  const normFilter = normalizeBengali(filterCategory).toLowerCase();
+  const normBookCat = normalizeBengali(bookCategory).toLowerCase();
+  const normTags = (bookTags || []).map((t) => normalizeBengali(t).toLowerCase());
+
+  // 1. Direct exact or substring match
+  if (normBookCat && (normBookCat === normFilter || normBookCat.includes(normFilter) || normFilter.includes(normBookCat))) {
+    return true;
+  }
+
+  // 2. Direct match against tags
+  if (normTags.some((t) => t === normFilter || t.includes(normFilter) || normFilter.includes(t))) {
+    return true;
+  }
+
+  // 3. Resolve canonical definition for filter
+  const foundDef = CANONICAL_CATEGORIES.find((def) => {
+    if (def.id.toLowerCase() === normFilter) return true;
+    if (normalizeBengali(def.name).toLowerCase() === normFilter) return true;
+    if (def.englishName.toLowerCase() === normFilter) return true;
+    return def.aliases.some((alias) => normalizeBengali(alias).toLowerCase() === normFilter);
+  });
+
+  // Also check dynamic categories from database
+  let dynamicDef: Category | undefined;
+  if (dynamicCategories && dynamicCategories.length > 0) {
+    dynamicDef = dynamicCategories.find((cat) => {
+      if (cat.id.toLowerCase() === normFilter) return true;
+      if (normalizeBengali(cat.name).toLowerCase() === normFilter) return true;
+      if (cat.englishName && cat.englishName.toLowerCase() === normFilter) return true;
+      if (cat.english_name && cat.english_name.toLowerCase() === normFilter) return true;
+      return false;
+    });
+  }
+
+  const candidateNames = new Set<string>();
+  if (foundDef) {
+    candidateNames.add(normalizeBengali(foundDef.name).toLowerCase());
+    foundDef.aliases.forEach((a) => candidateNames.add(normalizeBengali(a).toLowerCase()));
+  }
+  if (dynamicDef) {
+    candidateNames.add(normalizeBengali(dynamicDef.name).toLowerCase());
+    if (dynamicDef.englishName) candidateNames.add(dynamicDef.englishName.toLowerCase());
+    if (dynamicDef.english_name) candidateNames.add(dynamicDef.english_name.toLowerCase());
+  }
+
+  if (candidateNames.size > 0) {
+    for (const name of candidateNames) {
+      if (normBookCat && (normBookCat === name || normBookCat.includes(name) || name.includes(normBookCat))) {
+        return true;
+      }
+      if (normTags.some((t) => t === name || t.includes(name) || name.includes(t))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get human-friendly Bengali display name for a category identifier.
+ */
+export function getCategoryDisplayName(
+  categoryIdOrName: string | undefined | null,
+  dynamicCategories?: Category[]
+): string {
+  if (!categoryIdOrName || categoryIdOrName === 'all') return 'সকল বই';
+
+  const norm = normalizeBengali(categoryIdOrName);
+
+  // Check dynamic categories first
+  if (dynamicCategories && dynamicCategories.length > 0) {
+    const foundDyn = dynamicCategories.find(
+      (c) => c.id === norm || normalizeBengali(c.name) === norm || c.englishName?.toLowerCase() === norm.toLowerCase()
+    );
+    if (foundDyn) return foundDyn.name;
+  }
+
+  // Check canonical list
+  const found = CANONICAL_CATEGORIES.find(
+    (c) => c.id === norm || normalizeBengali(c.name) === norm || c.aliases.some((a) => normalizeBengali(a) === norm)
+  );
+  if (found) return found.name;
+
+  return categoryIdOrName;
+}
+
+/**
+ * Robust author comparison that handles Unicode NFC/NFD differences,
+ * whitespace, casing, and author IDs.
+ */
+export function matchesAuthor(
+  bookAuthor: string | undefined | null,
+  filterAuthor: string | undefined | null
+): boolean {
+  if (!filterAuthor || filterAuthor === 'all') return true;
+  if (!bookAuthor) return false;
+
+  const normBook = normalizeBengali(bookAuthor).toLowerCase();
+  const normFilter = normalizeBengali(filterAuthor).toLowerCase();
+
+  if (!normBook || !normFilter) return false;
+
+  // 1. Exact match under NFC
+  if (normBook === normFilter) return true;
+
+  // 2. Substring match (e.g. "হুমায়ূন আহমেদ" in "দেবী - হুমায়ূন আহমেদ")
+  if (normBook.includes(normFilter) || normFilter.includes(normBook)) return true;
+
+  // 3. Known author ID map (e.g. author-humayun -> হুমায়ূন আহমেদ)
+  const authorIdMap: Record<string, string> = {
+    'author-humayun': 'হুমায়ূন আহমেদ',
+    'author-rabindranath': 'রবীন্দ্রনাথ ঠাকুর',
+    'author-nazrul': 'কাজী নজরুল ইসলাম',
+    'author-satyajit': 'সত্যজিৎ রায়',
+    'author-sunil': 'সুনীল গঙ্গোপাধ্যায়',
+    'author-sharat': 'শরৎচন্দ্র চট্টোপাধ্যায়',
+    'author-zafar': 'মুহম্মদ জাফর ইকবাল',
+  };
+
+  if (authorIdMap[filterAuthor]) {
+    const canonicalName = normalizeBengali(authorIdMap[filterAuthor]).toLowerCase();
+    if (normBook === canonicalName || normBook.includes(canonicalName)) {
+      return true;
+    }
+  }
+
+  return false;
+}

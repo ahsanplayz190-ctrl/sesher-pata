@@ -6,7 +6,11 @@ import { BOOKS as INITIAL_BOOKS } from '../data/books';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../data/categories';
 import { INITIAL_BANNERS } from '../data/banners';
 import { settingsService, DEFAULT_SETTINGS } from '../services/settingsService';
-import { bookService, BOOKS_CHANGED_EVENT } from '../services/bookService';
+import { bookService, BOOKS_CHANGED_EVENT, BulkImportResult } from '../services/bookService';
+import { categoryService } from '../services/categoryService';
+import { authorService } from '../services/authorService';
+import { publisherService } from '../services/publisherService';
+import { normalizeBengali, matchesCategory } from '../utils/filterUtils';
 
 const INITIAL_AUTHORS: Author[] = [
   {
@@ -225,14 +229,14 @@ interface DataContextType {
   deleteBanner: (id: string) => void;
 
   // Category Actions
-  addCategory: (category: Omit<Category, 'id'> & { id?: string }) => Category;
-  updateCategory: (id: string, updated: Partial<Category>) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (category: Omit<Category, 'id'> & { id?: string }) => Promise<Category>;
+  updateCategory: (id: string, updated: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
 
   // Author Actions
-  addAuthor: (author: Omit<Author, 'id'> & { id?: string }) => Author;
-  updateAuthor: (id: string, updated: Partial<Author>) => void;
-  deleteAuthor: (id: string) => void;
+  addAuthor: (author: Omit<Author, 'id'> & { id?: string }) => Promise<Author>;
+  updateAuthor: (id: string, updated: Partial<Author>) => Promise<void>;
+  deleteAuthor: (id: string) => Promise<void>;
 
   // Publisher Actions
   addPublisher: (publisher: Omit<Publisher, 'id'> & { id?: string }) => Publisher;
@@ -252,7 +256,8 @@ interface DataContextType {
   // Management & Backup
   resetAllData: () => void;
   exportDataJSON: () => string;
-  importDataJSON: (jsonString: string) => boolean;
+  importDataJSON: (jsonString: string) => Promise<BulkImportResult>;
+  importBooksBulk: (booksOrJson: any) => Promise<BulkImportResult>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -270,9 +275,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [books, setBooks] = useState<Book[]>(() => bookService.getCachedBooks());
   const [isBooksLoading, setIsBooksLoading] = useState<boolean>(true);
   const [banners, setBanners] = useState<Banner[]>(INITIAL_BANNERS);
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [authors, setAuthors] = useState<Author[]>(INITIAL_AUTHORS);
-  const [publishers, setPublishers] = useState<Publisher[]>(INITIAL_PUBLISHERS);
+  const [categories, setCategories] = useState<Category[]>(() => categoryService.getCachedCategories());
+  const [authors, setAuthors] = useState<Author[]>(() => authorService.getCachedAuthors(INITIAL_AUTHORS));
+  const [publishers, setPublishers] = useState<Publisher[]>(() => publisherService.getCachedPublishers(INITIAL_PUBLISHERS));
   const [orders, setOrders] = useState<OrderDetails[]>(INITIAL_ORDERS);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -303,20 +308,51 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setBanners(JSON.parse(storedBanners));
       }
 
+      // Load cached categories/authors and fetch latest from server
       const storedCategories = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
       if (storedCategories) {
-        setCategories(JSON.parse(storedCategories));
+        try {
+          const parsed = JSON.parse(storedCategories);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCategories(parsed);
+          }
+        } catch {}
       }
+      categoryService.fetchCategories().then((remoteCats) => {
+        if (remoteCats && remoteCats.length > 0) {
+          setCategories(remoteCats);
+        }
+      });
 
       const storedAuthors = localStorage.getItem(STORAGE_KEYS.AUTHORS);
       if (storedAuthors) {
-        setAuthors(JSON.parse(storedAuthors));
+        try {
+          const parsed = JSON.parse(storedAuthors);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAuthors(parsed);
+          }
+        } catch {}
       }
+      authorService.fetchAuthors(INITIAL_AUTHORS).then((remoteAuthors) => {
+        if (remoteAuthors && remoteAuthors.length > 0) {
+          setAuthors(remoteAuthors);
+        }
+      });
 
       const storedPublishers = localStorage.getItem(STORAGE_KEYS.PUBLISHERS);
       if (storedPublishers) {
-        setPublishers(JSON.parse(storedPublishers));
+        try {
+          const parsed = JSON.parse(storedPublishers);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPublishers(parsed);
+          }
+        } catch {}
       }
+      publisherService.fetchPublishers(INITIAL_PUBLISHERS).then((remotePubs) => {
+        if (remotePubs && remotePubs.length > 0) {
+          setPublishers(remotePubs);
+        }
+      });
 
       const storedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
       if (storedOrders) {
@@ -439,7 +475,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Book Methods (Synchronized with Supabase as single source of truth)
   const addBook = async (bookData: Omit<Book, 'id'> & { id?: string }): Promise<Book> => {
-    const banglaName = (bookData.bangla_name || bookData.title || '').trim();
+    const banglaName = normalizeBengali(bookData.bangla_name || bookData.title || '');
     const englishName = (bookData.english_name || '').trim();
     const title = banglaName || englishName || bookData.title || '';
 
@@ -450,6 +486,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       title_bn: banglaName,
       bangla_name: banglaName,
       english_name: englishName,
+      author: normalizeBengali(bookData.author || ''),
+      publisher: normalizeBengali(bookData.publisher || 'বাতিঘর'),
+      category: normalizeBengali(bookData.category || 'উপন্যাস'),
       image: bookData.image || bookData.cover_image || '',
       cover_image: bookData.cover_image || bookData.image || '',
       price: Number(bookData.price) || 0,
@@ -477,8 +516,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Also update category bookCount
     setCategories((prev) =>
       prev.map((cat) =>
-        cat.name === savedBook.category || cat.englishName === savedBook.category
-          ? { ...cat, bookCount: cat.bookCount + 1 }
+        matchesCategory(savedBook.category, savedBook.tags, cat.name, prev) ||
+        matchesCategory(savedBook.category, savedBook.tags, cat.id, prev)
+          ? { ...cat, bookCount: (cat.bookCount || 0) + 1 }
           : cat
       )
     );
@@ -487,7 +527,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateBook = async (id: string, updated: Partial<Book>): Promise<Book> => {
-    const savedBook = await bookService.updateBook(id, updated);
+    const payload = { ...updated };
+    if (payload.author !== undefined) payload.author = normalizeBengali(payload.author);
+    if (payload.publisher !== undefined) payload.publisher = normalizeBengali(payload.publisher);
+    if (payload.category !== undefined) payload.category = normalizeBengali(payload.category);
+    if (payload.title !== undefined) payload.title = normalizeBengali(payload.title);
+    if (payload.image !== undefined && payload.cover_image === undefined) {
+      payload.cover_image = payload.image;
+    } else if (payload.cover_image !== undefined && payload.image === undefined) {
+      payload.image = payload.cover_image;
+    }
+    const savedBook = await bookService.updateBook(id, payload);
 
     setBooks((prev) => {
       const next = prev.map((b) => (b.id === id ? { ...b, ...savedBook } : b));
@@ -575,45 +625,137 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Category Methods
-  const addCategory = (catData: Omit<Category, 'id'> & { id?: string }): Category => {
+  const addCategory = async (catData: Omit<Category, 'id'> & { id?: string }): Promise<Category> => {
+    const id = catData.id || `cat-${Date.now()}`;
+    const cleanImage = catData.imageUrl || (catData as any).image || '';
     const newCat: Category = {
       ...catData,
-      id: catData.id || `cat-${Date.now()}`,
+      id,
+      imageUrl: cleanImage,
+      image: cleanImage,
       bookCount: catData.bookCount || 0,
+      updated_at: new Date().toISOString(),
     };
-    setCategories((prev) => [...prev, newCat]);
-    return newCat;
+
+    // 1. Persist to database first
+    const serverCat = await categoryService.addCategory(newCat);
+    const finalizedCat = serverCat || newCat;
+
+    // 2. Update local state
+    setCategories((prev) => {
+      const updated = [...prev, finalizedCat];
+      categoryService.saveToCache(updated);
+      return updated;
+    });
+
+    return finalizedCat;
   };
 
-  const updateCategory = (id: string, updated: Partial<Category>) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
-    );
+  const updateCategory = async (id: string, updated: Partial<Category>): Promise<void> => {
+    const cleanImage = updated.imageUrl !== undefined ? updated.imageUrl : (updated as any).image;
+
+    // 1. Persist to database first (throws on failure so UI does not report false success)
+    const serverCat = await categoryService.updateCategory(id, {
+      ...updated,
+      imageUrl: cleanImage,
+      image: cleanImage,
+    });
+
+    // 2. Update local state only after database success
+    setCategories((prev) => {
+      const next = prev.map((c) => {
+        if (c.id === id) {
+          const newImg = cleanImage !== undefined ? cleanImage : (c.imageUrl || c.image || '');
+          return {
+            ...c,
+            ...updated,
+            ...(serverCat || {}),
+            imageUrl: newImg,
+            image: newImg,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return c;
+      });
+      categoryService.saveToCache(next);
+      return next;
+    });
   };
 
-  const deleteCategory = (id: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+  const deleteCategory = async (id: string): Promise<void> => {
+    await categoryService.deleteCategory(id);
+    setCategories((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      categoryService.saveToCache(next);
+      return next;
+    });
   };
 
   // Author Methods
-  const addAuthor = (authorData: Omit<Author, 'id'> & { id?: string }): Author => {
+  const addAuthor = async (authorData: Omit<Author, 'id'> & { id?: string }): Promise<Author> => {
+    const id = authorData.id || `auth-${Date.now()}`;
+    const cleanImage = authorData.image || (authorData as any).image_url || '';
     const newAuthor: Author = {
       ...authorData,
-      id: authorData.id || `auth-${Date.now()}`,
+      id,
+      image: cleanImage,
+      image_url: cleanImage,
       bookCount: authorData.bookCount || 0,
+      updated_at: new Date().toISOString(),
     };
-    setAuthors((prev) => [...prev, newAuthor]);
-    return newAuthor;
+
+    // 1. Persist to database first
+    const serverAuthor = await authorService.addAuthor(newAuthor);
+    const finalizedAuthor = serverAuthor || newAuthor;
+
+    // 2. Update local state
+    setAuthors((prev) => {
+      const updated = [...prev, finalizedAuthor];
+      authorService.saveToCache(updated);
+      return updated;
+    });
+
+    return finalizedAuthor;
   };
 
-  const updateAuthor = (id: string, updated: Partial<Author>) => {
-    setAuthors((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, ...updated } : a))
-    );
+  const updateAuthor = async (id: string, updated: Partial<Author>): Promise<void> => {
+    const cleanImage = updated.image !== undefined ? updated.image : (updated as any).image_url;
+
+    // 1. Persist to database first (throws on failure so UI does not report false success)
+    const serverAuthor = await authorService.updateAuthor(id, {
+      ...updated,
+      image: cleanImage,
+      image_url: cleanImage,
+    });
+
+    // 2. Update local state only after database success
+    setAuthors((prev) => {
+      const next = prev.map((a) => {
+        if (a.id === id) {
+          const newImg = cleanImage !== undefined ? cleanImage : (a.image || a.image_url || '');
+          return {
+            ...a,
+            ...updated,
+            ...(serverAuthor || {}),
+            image: newImg,
+            image_url: newImg,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return a;
+      });
+      authorService.saveToCache(next);
+      return next;
+    });
   };
 
-  const deleteAuthor = (id: string) => {
-    setAuthors((prev) => prev.filter((a) => a.id !== id));
+  const deleteAuthor = async (id: string): Promise<void> => {
+    await authorService.deleteAuthor(id);
+    setAuthors((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      authorService.saveToCache(next);
+      return next;
+    });
   };
 
   // Publisher Methods
@@ -623,18 +765,42 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       id: pubData.id || `pub-${Date.now()}`,
       bookCount: pubData.bookCount || 0,
     };
-    setPublishers((prev) => [...prev, newPub]);
+    setPublishers((prev) => {
+      const next = [...prev, newPub];
+      publisherService.saveToCache(next);
+      return next;
+    });
+
+    // Background server sync if available
+    fetch('/api/admin/publishers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPub),
+    }).catch(() => {});
+
     return newPub;
   };
 
   const updatePublisher = (id: string, updated: Partial<Publisher>) => {
-    setPublishers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updated } : p))
-    );
+    setPublishers((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, ...updated } : p));
+      publisherService.saveToCache(next);
+      return next;
+    });
+
+    fetch('/api/admin/publishers', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updated }),
+    }).catch(() => {});
   };
 
   const deletePublisher = (id: string) => {
-    setPublishers((prev) => prev.filter((p) => p.id !== id));
+    setPublishers((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      publisherService.saveToCache(next);
+      return next;
+    });
   };
 
   // Order Methods
@@ -699,10 +865,68 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return JSON.stringify(bundle, null, 2);
   };
 
-  const importDataJSON = (jsonString: string): boolean => {
+  const importBooksBulk = async (booksOrJson: any): Promise<BulkImportResult> => {
+    const res = await bookService.bulkImportBooks(booksOrJson);
+    if (res.success) {
+      // Immediately refresh books from Supabase to ensure in-memory state is 100% synchronized with database
+      const freshBooks = await bookService.fetchBooks();
+      if (Array.isArray(freshBooks)) {
+        setBooks(freshBooks);
+        bookService.saveToCache(freshBooks);
+      }
+    }
+    return res;
+  };
+
+  const importDataJSON = async (jsonString: string): Promise<BulkImportResult> => {
+    let parsed: any;
     try {
-      const parsed = JSON.parse(jsonString);
-      if (parsed.books && Array.isArray(parsed.books)) setBooks(parsed.books);
+      parsed = JSON.parse(jsonString);
+    } catch (e: any) {
+      return {
+        success: false,
+        total: 0,
+        imported: 0,
+        updated: 0,
+        failed: 0,
+        failedRecords: [],
+        message: 'অবৈধ JSON ফাইল: ফাইলটি সঠিকভাবে পার্স করা যায়নি।',
+      };
+    }
+
+    // Determine if it is a book collection or full site backup
+    let booksToImport: any[] | null = null;
+    if (Array.isArray(parsed)) {
+      booksToImport = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.books)) {
+        booksToImport = parsed.books;
+      } else if (Array.isArray(parsed.data)) {
+        booksToImport = parsed.data;
+      } else if (Array.isArray(parsed.items)) {
+        booksToImport = parsed.items;
+      } else if (parsed.title || parsed.bangla_name || parsed.english_name) {
+        booksToImport = [parsed];
+      }
+    }
+
+    let result: BulkImportResult = {
+      success: true,
+      total: 0,
+      imported: 0,
+      updated: 0,
+      failed: 0,
+      failedRecords: [],
+      message: 'ডেটা প্রক্রিয়াকরণ সম্পন্ন হয়েছে।',
+    };
+
+    // If books are present, save/restore them directly to Supabase via bulk upsert
+    if (booksToImport && booksToImport.length > 0) {
+      result = await importBooksBulk(booksToImport);
+    }
+
+    // Restore other entities if present in the full backup object
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       if (parsed.banners && Array.isArray(parsed.banners)) setBanners(parsed.banners);
       if (parsed.categories && Array.isArray(parsed.categories)) setCategories(parsed.categories);
       if (parsed.authors && Array.isArray(parsed.authors)) setAuthors(parsed.authors);
@@ -712,11 +936,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSiteSettings(parsed.siteSettings);
         settingsService.saveSettings(parsed.siteSettings);
       }
-      return true;
-    } catch (e) {
-      console.error('Failed to parse import JSON', e);
-      return false;
     }
+
+    return result;
   };
 
   return (
@@ -754,6 +976,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         resetAllData,
         exportDataJSON,
         importDataJSON,
+        importBooksBulk,
       }}
     >
       {children}

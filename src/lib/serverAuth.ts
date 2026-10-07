@@ -1,5 +1,6 @@
 import 'server-only';
 import crypto from 'crypto';
+import { getServerEnv } from './serverEnv';
 
 if (typeof window !== 'undefined') {
   throw new Error('SECURITY VIOLATION: serverAuth can only be executed in a server environment.');
@@ -8,39 +9,10 @@ if (typeof window !== 'undefined') {
 export const ADMIN_COOKIE_NAME = 'seshadmin_token';
 
 /**
- * Verify admin username/email and password using constant-time string comparison
- * to prevent timing attacks.
- */
-export function verifyCredentials(identifier: string, password: string): boolean {
-  if (!identifier || !password) return false;
-
-  const username = process.env.ADMIN_USERNAME || 'seshadmin';
-  const email = process.env.ADMIN_EMAIL || '';
-  const expectedPassword = process.env.ADMIN_PASSWORD;
-
-  if (!expectedPassword) {
-    console.error('[Admin Auth Error] ADMIN_PASSWORD is not configured in environment variables');
-    return false;
-  }
-
-  const cleanInput = identifier.trim().toLowerCase();
-  const cleanUsername = username.trim().toLowerCase();
-  const cleanEmail = email.trim().toLowerCase();
-
-  // Identifier can be either the admin username or admin email
-  const userMatch =
-    timingSafeEqual(cleanInput, cleanUsername) ||
-    (Boolean(cleanEmail) && timingSafeEqual(cleanInput, cleanEmail));
-
-  const passMatch = timingSafeEqual(password, expectedPassword);
-
-  return userMatch && passMatch;
-}
-
-/**
- * Constant-time string comparison helper.
+ * Constant-time string comparison helper to prevent timing attacks.
  */
 function timingSafeEqual(a: string, b: string): boolean {
+  if (!a || !b) return false;
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) {
@@ -52,14 +24,47 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * Verify admin username/email and password using constant-time string comparison.
+ * Robust against surrounding quotes, whitespace, and case differences in username/email.
+ */
+export function verifyCredentials(identifier: string, password: string): boolean {
+  if (!identifier || !password) return false;
+
+  const env = getServerEnv();
+
+  if (!env.adminPassword) {
+    console.error('[Admin Auth Error] Authentication configuration is missing (ADMIN_PASSWORD is not set).');
+    return false;
+  }
+
+  const cleanInput = identifier.trim().toLowerCase();
+  const cleanUsername = env.adminUsername.toLowerCase();
+  const cleanEmail = env.adminEmail.toLowerCase();
+
+  // Identifier can be either the admin username or admin email
+  const userMatch =
+    timingSafeEqual(cleanInput, cleanUsername) ||
+    (Boolean(cleanEmail) && timingSafeEqual(cleanInput, cleanEmail));
+
+  // Support both raw and trimmed input password against sanitized server password
+  const passMatch =
+    timingSafeEqual(password, env.adminPassword) ||
+    timingSafeEqual(password.trim(), env.adminPassword);
+
+  return userMatch && passMatch;
+}
+
+/**
  * Generate a cryptographically signed session token.
  * Payload: { role: 'admin', exp: Date.now() + maxAge }
  */
 export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
-  const secret = process.env.ADMIN_SESSION_SECRET;
+  const env = getServerEnv();
+  const secret = env.adminSessionSecret;
   if (!secret) {
-    throw new Error('Server configuration is incomplete. (ADMIN_SESSION_SECRET is missing in environment variables)');
+    throw new Error('Authentication configuration is missing (ADMIN_SESSION_SECRET is not set).');
   }
+
   const expiresAt = Date.now() + maxAgeSeconds * 1000;
   const payload = Buffer.from(JSON.stringify({ role: 'admin', exp: expiresAt })).toString('base64url');
   const signature = crypto
@@ -75,9 +80,10 @@ export function createSessionToken(maxAgeSeconds = 86400 * 7): string {
  */
 export function verifySessionToken(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
-  const secret = process.env.ADMIN_SESSION_SECRET;
+  const env = getServerEnv();
+  const secret = env.adminSessionSecret;
   if (!secret) {
-    console.error('[Admin Auth Error] ADMIN_SESSION_SECRET is missing in environment variables');
+    console.error('[Admin Auth Error] Authentication configuration is missing (ADMIN_SESSION_SECRET is not set).');
     return false;
   }
 
@@ -107,12 +113,25 @@ export function verifySessionToken(token: string | null | undefined): boolean {
 }
 
 /**
- * Extract and verify admin token from Request Cookie header.
+ * Extract and verify admin token from Request Cookie header or NextRequest cookies.
  */
 export function isRequestAuthorized(request: Request): boolean {
-  const cookieHeader = request.headers.get('cookie') || '';
-  const cookies = parseCookies(cookieHeader);
-  const token = cookies[ADMIN_COOKIE_NAME];
+  let token: string | undefined = undefined;
+
+  // 1. Check native NextRequest cookies getter if available
+  if ('cookies' in request && typeof (request as any).cookies?.get === 'function') {
+    const cookieObj = (request as any).cookies.get(ADMIN_COOKIE_NAME);
+    if (cookieObj && typeof cookieObj.value === 'string') {
+      token = cookieObj.value;
+    }
+  }
+
+  // 2. Fall back to parsing the raw Cookie header
+  if (!token) {
+    const cookieHeader = request.headers.get('cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    token = cookies[ADMIN_COOKIE_NAME];
+  }
 
   return verifySessionToken(token);
 }
